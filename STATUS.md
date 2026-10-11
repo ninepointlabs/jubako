@@ -2,6 +2,11 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-11.**
 
+## Release 0.4.2 — 2026-10-11
+
+The Customer service template's lookup and the MCP argument check, as Arch,
+.deb and .rpm packages.
+
 ## 2026-10-11 — MCP refuses arguments a tool does not take
 
 Every tool's schema already said `additionalProperties: false`, but the
