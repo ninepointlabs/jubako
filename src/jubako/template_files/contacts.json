@@ -2,8 +2,23 @@
   "key": "contacts",
   "order": 1,
   "title": "Contacts",
-  "blurb": "People you know: phone, email, address and birthday.",
+  "blurb": "People you know: phone, email, address and birthday. Each contact points at a group: family, friends, work...",
+  "opens": "contacts",
   "tables": [
+    {
+      "name": "contact_groups",
+      "fields": [
+        {"name": "name", "label": "Group", "unique": true},
+        {"name": "notes", "label": "Notes"}
+      ],
+      "rows": [
+        ["Family", ""],
+        ["Friends", ""],
+        ["Neighbours", "Hill Street and around"],
+        ["Work", ""],
+        ["Services", "Trades and people we pay"]
+      ]
+    },
     {
       "name": "contacts",
       "fields": [
@@ -15,32 +30,37 @@
         {"name": "town", "label": "Town"},
         {"name": "birthday", "type": "date", "label": "Birthday"},
         {"name": "favourite", "type": "boolean", "label": "Favourite"},
+        {"name": "contact_group", "type": "lookup", "target": "contact_groups", "show": "name", "label": "Group"},
         {"name": "notes", "label": "Notes"}
       ],
       "rows": [
-        ["Ada", "Moreno", "555-0101", "ada.moreno@example.com", "12 Elm Road", "Bend", "1986-04-12", "yes", "Book club"],
-        ["Ben", "Okafor", "555-0102", "ben@example.com", "4 Harbour Lane", "Astoria", "1979-11-03", "no", ""],
-        ["Chloe", "Lindqvist", "555-0103", "", "88 Hill Street", "Bend", "1992-07-21", "yes", "Neighbour; has a spare key"],
-        ["Dev", "Rao", "555-0104", "dev.rao@example.com", "", "Salem", "1990-01-30", "no", "Met at the climbing gym"],
-        ["Elena", "Petrova", "555-0105", "elena@example.com", "3 Mill Close", "Astoria", "1965-09-09", "yes", ""],
-        ["Femi", "Adeyemi", "", "femi@example.com", "", "Portland", "", "no", "Plumber"]
+        ["Ada", "Moreno", "555-0101", "ada.moreno@example.com", "12 Elm Road", "Bend", "1986-04-12", "yes", "Friends", "Book club"],
+        ["Ben", "Okafor", "555-0102", "ben@example.com", "4 Harbour Lane", "Astoria", "1979-11-03", "no", "Work", ""],
+        ["Chloe", "Lindqvist", "555-0103", "", "88 Hill Street", "Bend", "1992-07-21", "yes", "Neighbours", "Neighbour; has a spare key"],
+        ["Dev", "Rao", "555-0104", "dev.rao@example.com", "", "Salem", "1990-01-30", "no", "Friends", "Met at the climbing gym"],
+        ["Elena", "Petrova", "555-0105", "elena@example.com", "3 Mill Close", "Astoria", "1965-09-09", "yes", "Family", ""],
+        ["Femi", "Adeyemi", "", "femi@example.com", "", "Portland", "", "no", "Services", "Plumber"]
       ]
     }
   ],
   "forms": [
     {"table": "contacts", "title": "Contact",
-     "fields": ["first_name", "last_name", "phone", "email", "street", "town", "birthday", "favourite", "notes"]}
+     "fields": ["first_name", "last_name", "phone", "email", "street", "town", "birthday", "favourite", "contact_group", "notes"]}
   ],
   "views": [
     {"table": "contacts", "name": "A to Z", "sort": [{"field": "last_name"}, {"field": "first_name"}], "default": true},
     {"table": "contacts", "name": "Favourites", "filter": {"field": "favourite", "op": "is", "value": "yes"},
      "sort": [{"field": "last_name"}]},
-    {"table": "contacts", "name": "No email yet", "filter": {"field": "email", "op": "empty"}}
+    {"table": "contacts", "name": "No email yet", "filter": {"field": "email", "op": "empty"}},
+    {"table": "contact_groups", "name": "A to Z", "sort": [{"field": "name"}], "default": true}
   ],
   "reports": [
     {"name": "Phone list", "table": "contacts", "title": "Phone list",
      "columns": ["last_name", "first_name", "phone", "email"], "sort": [{"field": "last_name"}, {"field": "first_name"}]},
     {"name": "Address book", "table": "contacts", "title": "Address book",
-     "columns": ["first_name", "last_name", "street", "phone"], "group_by": "town", "sort": [{"field": "last_name"}]}
+     "columns": ["first_name", "last_name", "street", "phone"], "group_by": "town", "sort": [{"field": "last_name"}]},
+    {"name": "Contacts by group", "table": "contacts", "title": "Contacts by group",
+     "columns": ["first_name", "last_name", "phone", "email"], "group_by": "contact_group",
+     "sort": [{"field": "last_name"}]}
   ]
 }

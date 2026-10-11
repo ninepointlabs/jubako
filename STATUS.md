@@ -2,6 +2,16 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-11.**
 
+## 2026-10-11 — The Contacts template uses a lookup
+
+The Contacts template gains a `contact_groups` table (Group, no repeats,
+and Notes) with Family, Friends, Neighbours, Work and Services. A contact's
+Group is a lookup into it, and a new "Contacts by group" report groups
+contacts by it. The table and field are `contact_groups` and
+`contact_group`, not `groups` and `group`, which are reserved words in SQL
+(`GROUPS` in MySQL 8). Every template now connects its tables. Checked on a
+database file, PostgreSQL 17 and MariaDB 11.
+
 ## Release 0.4.4 — 2026-10-11
 
 The Home collection template's lookup, as Arch, .deb and .rpm packages.

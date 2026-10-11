@@ -142,7 +142,8 @@ def test_the_inventory_template_ties_each_item_to_its_supplier(database):
 
 
 def test_a_template_opens_on_its_first_table_unless_it_says(database):
-    assert templates.apply_template(database, "contacts")["opens"] == "contacts"
+    made = templates.apply_template(database, "projects")
+    assert made["tables"][0] == "projects" and made["opens"] == "projects"  # no "opens": the first table
 
 
 def test_the_home_collection_template_ties_each_loan_to_a_person(database):
@@ -165,3 +166,18 @@ def test_the_home_collection_template_ties_each_loan_to_a_person(database):
     chloe = next(row for row in database.list_rows("people")["rows"] if row[1] == "Chloe")
     with pytest.raises(JubakoError):
         database.delete_row("people", chloe[0])
+
+
+def test_the_contacts_template_puts_each_contact_in_a_group(database):
+    made = templates.apply_template(database, "contacts")
+    assert made["tables"] == ["contact_groups", "contacts"] and made["opens"] == "contacts"
+    group = next(f for f in database.describe_table("contacts").fields if f.name == "contact_group")
+    assert (group.type, group.target, group.show, group.title) == ("lookup", "contact_groups", "name", "Group")
+    friends = database.list_rows("contacts", where={"field": "contact_group", "op": "is", "value": "friends"})
+    assert sorted(row[1] for row in friends["rows"]) == ["Ada", "Dev"]
+    work = next(row for row in database.list_rows("contact_groups")["rows"] if row[1] == "Work")
+    with pytest.raises(JubakoError):
+        database.delete_row("contact_groups", work[0])
+    report = normalise_spec(database, load_report(database, "Contacts by group"))
+    headings = [line["text"] for line in fetch_lines(database, report) if line["kind"] == "group"]
+    assert headings == ["Group: Family", "Group: Friends", "Group: Neighbours", "Group: Services", "Group: Work"]
