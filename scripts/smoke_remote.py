@@ -33,7 +33,7 @@ from jubako.errors import JubakoError  # noqa: E402
 from jubako.fields import BOOLEAN, DATE, INTEGER, REAL, TEXT, Field  # noqa: E402
 from jubako.storage import create_database, open_database  # noqa: E402
 
-TABLE = "jubako_smoke_pets"
+TABLE = "smoke_pets"  # not "jubako_...": that prefix is kept for Jubako's own tables
 
 FIELDS = [
     Field("name", TEXT, "Name"),

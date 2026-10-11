@@ -2,6 +2,14 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-10.**
 
+## Fix 2026-10-10 — the remote smoke test runs again
+
+`scripts/smoke_remote.py` made its table as `jubako_smoke_pets`, a name
+Jubako keeps for itself, so it stopped at once ("Names starting with
+'jubako_' are kept for Jubako itself."). The table is `smoke_pets` now.
+Run against PostgreSQL 17 and MariaDB 11 (throwaway Docker containers):
+OK on both, end to end.
+
 ## 2026-10-10 — Access features, part 3: the Database menu, forms, rows in bulk
 
 `TODO.md` items 1–7 are all ticked now.
