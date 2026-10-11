@@ -1,5 +1,5 @@
 Name:           jubako
-Version:        0.4.3
+Version:        0.4.4
 Release:        1%{?dist}
 Summary:        A simple desktop database, in the spirit of Microsoft Access
 License:        MIT
@@ -40,6 +40,8 @@ rm -rf %{buildroot}%{_docdir}/%{name} %{buildroot}%{_datadir}/licenses/%{name}
 %{_datadir}/icons/hicolor/scalable/apps/jubako.svg
 
 %changelog
+* Sun Oct 11 2026 Nine Point Labs <179739321+ninepointlabs@users.noreply.github.com> - 0.4.4-1
+- The Home collection template ties each loan to the person who has it.
 * Sun Oct 11 2026 Nine Point Labs <179739321+ninepointlabs@users.noreply.github.com> - 0.4.3-1
 - The Inventory template ties each item to its supplier; a new Customer
   service database opens on its tickets again.

@@ -2,6 +2,10 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-11.**
 
+## Release 0.4.4 — 2026-10-11
+
+The Home collection template's lookup, as Arch, .deb and .rpm packages.
+
 ## 2026-10-11 — The Home collection template uses a lookup
 
 The Home collection template gains a `people` table (Name, no repeats,
