@@ -2,6 +2,30 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-10.**
 
+## 2026-10-10 — Access features, part 3: the Database menu
+
+**3. Backstage.** The header's "Open another" became **Database…**: New
+database, New from a template, Open another, Open a recent one, Save a
+copy…, Rename…, Close, Delete this whole database (moved here from More…).
+- **Save a copy** (`schema.save_copy`): SQLite's backup API into a `.part`
+  file, then renamed, so the copy is whole even while the database is open;
+  journal mode DELETE so it is one self-contained file. Refuses the
+  database's own path, and a taken one unless overwrite (the window's save
+  dialog asks). File databases only. Suggests "<name> copy <date>.jubadb".
+- **Rename** (`schema.rename_database`): the title only; the file keeps its
+  name; the recent list follows.
+- CLI `jubako copy`, `jubako rename`; MCP `copy_database`, `rename_database`.
+
+**Fixed on the way.** `apply_template` failed halfway when a view by the
+same name was left over from an old table (the low-level
+`Storage.drop_table` leaves views behind; `schema.drop_table` does not). A
+template's views now replace such leftovers.
+
+Verified live again on PostgreSQL 17 and MariaDB 11: renaming; save a copy
+refused for a server.
+
+214 tests pass.
+
 ## 2026-10-10 — Access features, part 2: templates and keys
 
 **4. Templates.** Five ready-made databases in `src/jubako/template_files/`
@@ -53,7 +77,7 @@ made by hand, applying the Inventory template and laying out its reports.
 Not fixed (out of scope): `scripts/smoke_remote.py` stops at once because
 its table name `jubako_smoke_pets` starts with the reserved `jubako_`.
 
-211 tests pass.
+210 tests pass.
 
 ## 2026-10-10 — Access features, part 1: queries and reports
 

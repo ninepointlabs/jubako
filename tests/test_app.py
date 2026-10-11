@@ -984,3 +984,17 @@ def test_no_repeats_and_row_numbers_from_the_bridge(bridge, sandbox):
     assert bridge.addRowNumber()["ok"] is True
     assert bridge.canEdit is True and bridge.rows.rowId(0) == 1
     assert bridge.saveRow(1, {"seen": 4})["ok"] is True
+
+
+def test_rename_and_copy_the_database_from_the_bridge(pets, sandbox):
+    from jubako import catalog
+
+    assert pets.renameDatabase("Our pets")["ok"] is True
+    assert pets.title == "Our pets"
+    assert catalog.recent()[0]["title"] == "Our pets"
+    assert pets.renameDatabase("")["ok"] is False
+    suggested = pets.copyName()
+    assert suggested.startswith("file://") and " copy " in suggested
+    made = pets.saveCopy(suggested)
+    assert made["ok"] is True and Path(made["file"]).exists()
+    assert pets.location.endswith("pets.jubadb")       # still working in the original

@@ -21,10 +21,10 @@ and the window, with tests. Work order: 7a → 6 → 4 → 2 → 3 → 5 → 7b.
 
 ## 3. Backstage (the File menu)
 
-- [ ] One "Database" menu in the header: New, Open, Recent, Save a copy…,
+- [x] One "Database" menu in the header: New, Open, Recent, Save a copy…,
       Rename database…, Close, Delete database.
-- [ ] Save a copy of a file database (SQLite backup, safe while open).
-- [ ] Rename the database's title.
+- [x] Save a copy of a file database (SQLite backup, safe while open).
+- [x] Rename the database's title.
 
 ## 4. Templates
 

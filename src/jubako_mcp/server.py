@@ -180,6 +180,21 @@ def tool_create_database(arguments: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def tool_rename_database(arguments: dict[str, Any]) -> dict[str, Any]:
+    with _open(arguments) as storage:
+        result = schema.rename_database(storage, arguments["title"])
+        _remember(storage)
+    return result
+
+
+def tool_copy_database(arguments: dict[str, Any]) -> dict[str, Any]:
+    with _open(arguments) as storage:
+        result = schema.save_copy(storage, arguments["file"], overwrite=bool(arguments.get("overwrite", False)))
+    if result["replaced_existing_file"]:
+        result["note"] = "A file was already there and has been replaced."
+    return result
+
+
 def tool_list_templates(arguments: dict[str, Any]) -> dict[str, Any]:
     return {"templates": templates.list_templates()}
 
@@ -500,6 +515,35 @@ TOOLS: list[dict[str, Any]] = [
             "additionalProperties": False,
         },
         "handler": tool_create_database,
+    },
+    {
+        "name": "rename_database",
+        "description": "Change a database's title (what Home and the window show). The file name stays.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {**_TARGET_PROPERTIES, "title": {"type": "string"}},
+            "required": ["title"],
+            "additionalProperties": False,
+        },
+        "handler": tool_rename_database,
+    },
+    {
+        "name": "copy_database",
+        "description": (
+            "Save a copy of a database file to another file (a whole, working .jubadb; safe while it is open). "
+            "Database files only, not servers. Says whether a file was replaced."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                **_TARGET_PROPERTIES,
+                "file": {"type": "string", "description": "Where the copy goes."},
+                "overwrite": {"type": "boolean", "default": False},
+            },
+            "required": ["file"],
+            "additionalProperties": False,
+        },
+        "handler": tool_copy_database,
     },
     {
         "name": "list_templates",

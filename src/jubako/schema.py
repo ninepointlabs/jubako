@@ -6,11 +6,12 @@ the database in step, so nothing points at a field that is gone.
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
 from typing import Any
 
 from .errors import JubakoError
-from .paths import DB_SUFFIXES, resolve_under_roots
+from .paths import DB_SUFFIXES, database_path, resolve_under_roots
 from .reports import FORM_KEY, REPORT_KEY, list_reports, load_form, load_report, normalise_spec
 from .fields import FIELD_TYPES, Field, field_dict, slugify_name
 from .filters import filter_fields, rename_in_filter
@@ -107,6 +108,52 @@ def delete_database_file(storage: Storage | None, path: str) -> dict[str, Any]:
             removed.append(str(candidate))
     catalog.forget(backend=SQLITE, path=str(target))
     return {"deleted": True, "file": str(target), "removed": removed}
+
+
+def rename_database(storage: Storage, title: str) -> dict[str, Any]:
+    """Change the database's title: the words on Home and at the top of the window."""
+    title = (title or "").strip()
+    if not title:
+        raise JubakoError("Give the database a name.")
+    if len(title) > 120:
+        raise JubakoError("A database name must be 120 letters or fewer.")
+    storage.set_info("title", title)
+    return {"title": title, "location": storage.location()}
+
+
+def save_copy(storage: Storage, path: str, *, overwrite: bool = False) -> dict[str, Any]:
+    """Write a copy of a database file somewhere else, safely, even while it is open.
+
+    The copy is a whole, working `.jubadb` (SQLite's own backup, so nothing
+    half-written ends up in it). The open database stays the one in use.
+    """
+    if storage.backend != SQLITE:
+        raise JubakoError(
+            "A copy can be saved from a database file on this computer. "
+            "For a server database, use the server's own backup tools."
+        )
+    target = database_path(path)
+    if target.resolve() == Path(storage.location()).resolve():
+        raise JubakoError("That is the database itself. Pick another name or folder for the copy.")
+    existed = target.exists()
+    if existed and not overwrite:
+        raise JubakoError(f"There is already a file at {target}. Pass overwrite to replace it.")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(target.name + ".part")
+    storage.commit()
+    source = storage.connection  # type: ignore[attr-defined]
+    destination = sqlite3.connect(str(temporary))
+    try:
+        source.backup(destination)
+        destination.execute("PRAGMA journal_mode = DELETE")  # one self-contained file, no -wal beside it
+    finally:
+        destination.close()
+    temporary.replace(target)
+    try:
+        target.chmod(0o600)
+    except OSError:
+        pass
+    return {"file": str(target), "bytes": target.stat().st_size, "replaced_existing_file": existed}
 
 
 # -- inside -------------------------------------------------------------

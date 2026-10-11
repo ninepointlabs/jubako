@@ -358,3 +358,15 @@ def test_unique_and_row_number_tools(sandbox):
         HANDLERS["update_row"]({"path": db, "table": "birds", "id": 2, "values": {"ring": "A1"}})
     assert HANDLERS["set_unique"]({"path": db, "table": "birds", "field": "ring", "unique": False})["fields"][-1] == {
         "name": "ring", "type": "text", "label": "Ring"}
+
+
+def test_rename_and_copy_database_tools(sandbox, pets_csv):
+    from jubako_mcp.server import HANDLERS
+
+    db = str(sandbox / "orig.jubadb")
+    HANDLERS["create_database"]({"title": "Orig", "path": db})
+    HANDLERS["import_spreadsheet"]({"path": db, "file": str(pets_csv)})
+    assert HANDLERS["rename_database"]({"path": db, "title": "Renamed"})["title"] == "Renamed"
+    copied = HANDLERS["copy_database"]({"path": db, "file": str(sandbox / "copy.jubadb")})
+    assert copied["replaced_existing_file"] is False
+    assert HANDLERS["list_rows"]({"path": copied["file"], "table": "pets"})["total"] == 4

@@ -149,3 +149,30 @@ def test_import_workbook_treats_a_csv_as_one_sheet(database, pets_csv):
     result = import_workbook(database, str(pets_csv))
     assert [t["table"] for t in result["tables"]] == ["pets"]
     assert result["errors"] == []
+
+
+def test_rename_database_and_save_a_copy(database, sandbox):
+    from jubako import views
+    from jubako.fields import Field
+
+    database.create_table("pets", [Field("name")])
+    database.add_row("pets", {"name": "Rex"})
+    views.save_view(database, "pets", "By name", None, sort=[{"field": "name"}])
+    assert schema.rename_database(database, "  The pets  ")["title"] == "The pets"
+    assert database.title == "The pets"
+    with pytest.raises(JubakoError, match="Give the database a name"):
+        schema.rename_database(database, " ")
+
+    copy = schema.save_copy(database, str(sandbox / "backup" / "pets copy"))
+    assert copy["file"].endswith("pets copy.jubadb") and copy["replaced_existing_file"] is False
+    database.add_row("pets", {"name": "After the copy"})       # the open one is still the one in use
+    with open_database(backend="sqlite", path=copy["file"]) as again:
+        assert again.title == "The pets"
+        assert [row[1] for row in again.list_rows("pets")["rows"]] == ["Rex"]
+        assert views.get_view(again, "pets", "By name") is not None
+    assert not (sandbox / "backup" / "pets copy.jubadb-wal").exists()
+    with pytest.raises(JubakoError, match="already a file"):
+        schema.save_copy(database, copy["file"])
+    assert schema.save_copy(database, copy["file"], overwrite=True)["replaced_existing_file"] is True
+    with pytest.raises(JubakoError, match="the database itself"):
+        schema.save_copy(database, database.location(), overwrite=True)

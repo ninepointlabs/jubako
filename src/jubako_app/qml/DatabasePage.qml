@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
 
 // One open database: its tables down the left, the rows of one table on the right.
 Page {
@@ -95,6 +96,45 @@ Page {
         onAccepted: { const r = Bridge.deleteDatabase(); if (!r.ok) toast.show(r.error) }
     }
 
+    FileDialog {
+        id: copyDialog
+        title: "Save a copy of this database"
+        fileMode: FileDialog.SaveFile
+        defaultSuffix: "jubadb"
+        nameFilters: ["Databases (*.jubadb)"]
+        onAccepted: { const r = Bridge.saveCopy(selectedFile); if (!r.ok) toast.show(r.error) }
+    }
+
+    Dialog {
+        id: renameDatabaseDialog
+        objectName: "renameDatabaseDialog"
+        property string renameError: ""
+        function openFor() { titleBox.text = Bridge.title; renameError = ""; open(); titleBox.forceActiveFocus(); titleBox.selectAll() }
+        function go() { const r = Bridge.renameDatabase(titleBox.text.trim()); if (r.ok) close(); else renameError = r.error }
+        title: "Rename this database"
+        modal: true
+        anchors.centerIn: parent
+        width: 460
+        padding: 20
+        Overlay.modal: Rectangle { color: Theme.isDark ? "#99000000" : "#55000000" }
+        contentItem: ColumnLayout {
+            spacing: 8
+            TextField { id: titleBox; Layout.fillWidth: true; onAccepted: renameDatabaseDialog.go() }
+            Label {
+                Layout.fillWidth: true
+                text: "The name on Home and at the top of the window." + (Bridge.isLocalFile ? " The file keeps its name." : "")
+                color: Theme.lightForeground
+                font.pointSize: 10
+                wrapMode: Text.WordWrap
+            }
+            Label { Layout.fillWidth: true; visible: renameDatabaseDialog.renameError !== ""; text: renameDatabaseDialog.renameError; color: Theme.red; wrapMode: Text.WordWrap }
+        }
+        footer: DialogButtonBox {
+            ActionButton { text: "Cancel"; onClicked: renameDatabaseDialog.reject() }
+            ActionButton { text: "Rename"; primary: true; enabled: titleBox.text.trim() !== ""; onClicked: renameDatabaseDialog.go() }
+        }
+    }
+
     Dialog {
         id: confirmRowNumber
         title: "Add a row number to \u201c" + Bridge.currentTable + "\u201d?"
@@ -172,7 +212,53 @@ Page {
                     elide: Text.ElideMiddle
                 }
             }
-            ActionButton { text: "Open another"; onClicked: win.startOpen() }
+            // The File menu, Access's "Backstage": everything about the database as a whole.
+            ActionButton {
+                text: "Database\u2026"
+                objectName: "databaseMenuButton"
+                onClicked: { databaseMenu.recentList = Bridge.recent(); databaseMenu.open() }
+                Menu {
+                    id: databaseMenu
+                    objectName: "databaseMenu"
+                    property var recentList: []
+                    y: parent.height
+                    width: 280
+                    MenuItem { text: "New database\u2026"; onTriggered: win.startNew() }
+                    MenuItem { text: "New from a template\u2026"; onTriggered: win.startTemplate() }
+                    MenuItem { text: "Open another\u2026"; onTriggered: win.startOpen() }
+                    Menu {
+                        title: "Open a recent one"
+                        enabled: databaseMenu.recentList.length > 1
+                        Repeater {
+                            model: databaseMenu.recentList
+                            MenuItem {
+                                required property int index
+                                required property var modelData
+                                text: modelData.title + "  \u00b7  " + modelData.backendWord
+                                // The open one is first in the list.
+                                visible: index > 0
+                                height: visible ? implicitHeight : 0
+                                onTriggered: win.openRecent(index)
+                            }
+                        }
+                    }
+                    MenuSeparator {}
+                    MenuItem {
+                        text: "Save a copy\u2026"
+                        objectName: "menuSaveCopy"
+                        enabled: Bridge.isLocalFile
+                        onTriggered: { copyDialog.selectedFile = Bridge.copyName(); copyDialog.open() }
+                    }
+                    MenuItem { text: "Rename\u2026"; objectName: "menuRenameDatabase"; onTriggered: renameDatabaseDialog.openFor() }
+                    MenuItem { text: "Close"; onTriggered: win.goHome() }
+                    MenuSeparator {}
+                    MenuItem {
+                        text: "Delete this whole database\u2026"
+                        enabled: Bridge.isLocalFile
+                        onTriggered: confirmDeleteDatabase.open()
+                    }
+                }
+            }
             ActionButton {
                 text: "Export…"
                 enabled: Bridge.currentTable !== ""
@@ -340,7 +426,6 @@ Page {
                             MenuItem { text: "Fields: add, rename or delete\u2026"; onTriggered: fieldsDialog.openFor() }
                             MenuSeparator {}
                             MenuItem { text: "Delete this table\u2026"; onTriggered: confirmDeleteTable.ask() }
-                            MenuItem { text: "Delete this whole database\u2026"; enabled: Bridge.isLocalFile; onTriggered: confirmDeleteDatabase.open() }
                         }
                     }
                 }

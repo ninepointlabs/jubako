@@ -75,6 +75,21 @@ def cmd_add_row_number(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_copy(args: argparse.Namespace) -> int:
+    with open_database(backend="sqlite", path=args.path) as storage:
+        result = schema.save_copy(storage, args.out, overwrite=args.overwrite)
+    print(f"Saved a copy at {result['file']}" + (" (replaced the file that was there)" if result["replaced_existing_file"] else ""))
+    return 0
+
+
+def cmd_rename(args: argparse.Namespace) -> int:
+    with open_database(backend="sqlite", path=args.path) as storage:
+        result = schema.rename_database(storage, args.title)
+        _remember(storage)
+    print(f"The database is now called {result['title']!r}.")
+    return 0
+
+
 def cmd_templates(args: argparse.Namespace) -> int:
     for item in _templates.list_templates():
         print(f"{item['key']:18} {item['title']}  —  {item['blurb']}")
@@ -263,6 +278,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub = subs.add_parser("templates", help="The ready-made databases you can start from")
     sub.set_defaults(func=cmd_templates)
+
+    sub = subs.add_parser("copy", help="Save a copy of a database file (safe while it is open)")
+    sub.add_argument("path")
+    sub.add_argument("out")
+    sub.add_argument("--overwrite", action="store_true")
+    sub.set_defaults(func=cmd_copy)
+
+    sub = subs.add_parser("rename", help="Change a database's title")
+    sub.add_argument("path")
+    sub.add_argument("title")
+    sub.set_defaults(func=cmd_rename)
 
     sub = subs.add_parser("unique", help="Make a field no-repeats (like an email or a code)")
     sub.add_argument("path")

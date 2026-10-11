@@ -736,6 +736,47 @@ class Bridge(QObject):
         self.message.emit(f"Deleted {Path(path).name}.")
         return {"ok": True}
 
+    @Slot(str, result="QVariantMap")
+    def renameDatabase(self, title: str) -> dict:  # noqa: N802
+        """Change the open database's title (Home and the top of the window follow)."""
+        if self._storage is None:
+            return {"ok": False, "error": "No database is open."}
+        try:
+            result = schema.rename_database(self._storage, title)
+        except JubakoError as error:
+            return {"ok": False, "error": str(error)}
+        info = self._storage.describe()
+        catalog.remember(
+            title=info.title, backend=info.backend,
+            path=info.location if info.backend == SQLITE else "",
+            where="" if info.backend == SQLITE else info.location,
+        )
+        self.databaseChanged.emit()
+        self.message.emit(f"Renamed the database to \u201c{result['title']}\u201d.")
+        return {"ok": True, "title": result["title"]}
+
+    @Slot(str, result="QVariantMap")
+    def saveCopy(self, url: str) -> dict:  # noqa: N802
+        """Write a copy of the open database file. The save dialog already asked about replacing."""
+        if self._storage is None:
+            return {"ok": False, "error": "No database is open."}
+        try:
+            result = schema.save_copy(self._storage, self.localPath(url), overwrite=True)
+        except JubakoError as error:
+            return {"ok": False, "error": str(error)}
+        self.message.emit(f"Saved a copy as {Path(result['file']).name}. You are still working in this one.")
+        return {"ok": True, "file": result["file"]}
+
+    @Slot(result=str)
+    def copyName(self) -> str:  # noqa: N802
+        """A suggested file for "Save a copy": next to the database, with "copy" and today's date."""
+        if self._storage is None or self._storage.backend != SQLITE:
+            return ""
+        import datetime as _dt  # noqa: PLC0415
+
+        here = Path(self._storage.location())
+        return QUrl.fromLocalFile(str(here.with_name(f"{here.stem} copy {_dt.date.today().isoformat()}{here.suffix}"))).toString()
+
     @Slot(result="QVariantMap")
     def deleteDatabase(self) -> dict:  # noqa: N802
         """Delete the open database file and go back to Home. Server databases are never dropped."""
