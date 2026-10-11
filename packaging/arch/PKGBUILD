@@ -1,6 +1,6 @@
 # Maintainer: Nine Point Labs <179739321+ninepointlabs@users.noreply.github.com>
 pkgname=jubako
-pkgver=0.2.0
+pkgver=0.3.0
 pkgrel=1
 pkgdesc="A simple desktop database for Omarchy, in the spirit of Microsoft Access"
 arch=('any')
@@ -14,7 +14,7 @@ optdepends=(
 )
 makedepends=('python-build' 'python-installer' 'python-hatchling')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('faaabc0c02737d830f8b38dd9e28e56cf593fa48e574da8df857a012d8e8cb78')
+sha256sums=('SKIP')
 
 build() {
   cd "$pkgname-$pkgver"

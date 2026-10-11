@@ -2,6 +2,12 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-10.**
 
+## Release 0.3.0 — 2026-10-10
+
+The Access features (`TODO.md` items 1–7) and the fixes after them, as
+Arch, .deb and .rpm packages. Version bumped in `pyproject.toml`,
+`jubako/__init__.py`, the PKGBUILD and the rpm spec.
+
 ## Fix 2026-10-10 — the remote smoke test runs again
 
 `scripts/smoke_remote.py` made its table as `jubako_smoke_pets`, a name

@@ -1,5 +1,5 @@
 Name:           jubako
-Version:        0.2.0
+Version:        0.3.0
 Release:        1%{?dist}
 Summary:        A simple desktop database, in the spirit of Microsoft Access
 License:        MIT
@@ -40,5 +40,8 @@ rm -rf %{buildroot}%{_docdir}/%{name} %{buildroot}%{_datadir}/licenses/%{name}
 %{_datadir}/icons/hicolor/scalable/apps/jubako.svg
 
 %changelog
+* Sat Oct 10 2026 Nine Point Labs <179739321+ninepointlabs@users.noreply.github.com> - 0.3.0-1
+- Templates, rules and sorting, rows in bulk, grouped reports with totals,
+  no-repeats fields, the form arranger and the Database menu.
 * Sat Oct 10 2026 Nine Point Labs <179739321+ninepointlabs@users.noreply.github.com> - 0.2.0-1
 - Renamed from Omarchy-DB; first packaged release.
