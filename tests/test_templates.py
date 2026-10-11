@@ -143,3 +143,25 @@ def test_the_inventory_template_ties_each_item_to_its_supplier(database):
 
 def test_a_template_opens_on_its_first_table_unless_it_says(database):
     assert templates.apply_template(database, "contacts")["opens"] == "contacts"
+
+
+def test_the_home_collection_template_ties_each_loan_to_a_person(database):
+    made = templates.apply_template(database, "collection")
+    assert made["tables"] == ["people", "collection"] and made["opens"] == "collection"
+    lent_to = next(f for f in database.describe_table("collection").fields if f.name == "lent_to")
+    assert (lent_to.type, lent_to.target, lent_to.show) == ("lookup", "people", "name")
+    # Most things are not lent out: a blank lookup stays blank.
+    lent = views.get_view(database, "collection", "Lent out")
+    page = database.list_rows("collection", where=lent["filter"], sort=[{"field": "lent_to"}])
+    at = page["columns"].index("lent_to")
+    assert [(row[1], row[at]) for row in page["rows"]] == [("Starboard", "Chloe"), ("Night Trains", "Dev")]
+    # Lending to Sam, who is in people, works by name; a stranger is refused.
+    harbour = next(row for row in database.list_rows("collection")["rows"] if row[1] == "The Quiet Harbour")
+    database.update_row("collection", harbour[0], {"lent_to": "sam"})
+    with pytest.raises(JubakoError):
+        database.update_row("collection", harbour[0], {"lent_to": "Someone new"})
+    report = normalise_spec(database, load_report(database, "Who has what"))
+    assert [row[-1] for row in fetch_rows(database, report)] == ["Chloe", "Dev", "Sam"]
+    chloe = next(row for row in database.list_rows("people")["rows"] if row[1] == "Chloe")
+    with pytest.raises(JubakoError):
+        database.delete_row("people", chloe[0])

@@ -2,8 +2,21 @@
   "key": "collection",
   "order": 5,
   "title": "Home collection",
-  "blurb": "Books, records, films and games: what you have, what it is worth, who borrowed it.",
+  "blurb": "Books, records, films and games: what you have, what it is worth, who borrowed it. Each loan points at the person who has it.",
+  "opens": "collection",
   "tables": [
+    {
+      "name": "people",
+      "fields": [
+        {"name": "name", "label": "Name", "unique": true},
+        {"name": "phone", "label": "Phone"}
+      ],
+      "rows": [
+        ["Chloe", "555-0162"],
+        ["Dev", "555-0108"],
+        ["Sam", "555-0195"]
+      ]
+    },
     {
       "name": "collection",
       "fields": [
@@ -14,7 +27,7 @@
         {"name": "genre", "label": "Genre"},
         {"name": "condition", "label": "Condition"},
         {"name": "value", "type": "real", "label": "Value"},
-        {"name": "lent_to", "label": "Lent to"},
+        {"name": "lent_to", "type": "lookup", "target": "people", "show": "name", "label": "Lent to"},
         {"name": "acquired_on", "type": "date", "label": "Got it"},
         {"name": "favourite", "type": "boolean", "label": "Favourite"}
       ],
@@ -33,16 +46,18 @@
      "fields": ["title", "creator", "kind", "year", "genre", "condition", "value", "lent_to", "acquired_on", "favourite"]}
   ],
   "views": [
-    {"table": "collection", "name": "Lent out", "filter": {"field": "lent_to", "op": "not_empty"}},
+    {"table": "collection", "name": "Lent out", "filter": {"field": "lent_to", "op": "not_empty"},
+     "sort": [{"field": "lent_to"}, {"field": "title"}]},
     {"table": "collection", "name": "Favourites", "filter": {"field": "favourite", "op": "is", "value": "yes"},
      "sort": [{"field": "title"}]},
-    {"table": "collection", "name": "A to Z", "sort": [{"field": "title"}], "default": true}
+    {"table": "collection", "name": "A to Z", "sort": [{"field": "title"}], "default": true},
+    {"table": "people", "name": "A to Z", "sort": [{"field": "name"}], "default": true}
   ],
   "reports": [
     {"name": "Collection by kind", "table": "collection", "title": "The collection",
      "columns": ["title", "creator", "year", "condition", "value"], "group_by": "kind",
      "sort": [{"field": "title"}], "totals": {"value": "sum"}},
     {"name": "Who has what", "table": "collection", "title": "Lent out", "view": "Lent out",
-     "columns": ["title", "kind", "lent_to"], "sort": [{"field": "lent_to"}]}
+     "columns": ["title", "kind", "lent_to"]}
   ]
 }

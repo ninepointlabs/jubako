@@ -954,7 +954,7 @@ def test_new_database_from_a_template_from_the_bridge(bridge, sandbox):
     empty = bridge.newFromTemplate("sqlite", str(sandbox / "stock.jubadb"), "Shop stock", {}, "inventory", False)
     assert empty["ok"] is True and bridge.title == "Shop stock" and bridge.totalRows == 0
     # A template whose lookups need another table made first still opens on its main table.
-    for key, table in (("inventory", "items"), ("customer_service", "tickets")):
+    for key, table in (("inventory", "items"), ("customer_service", "tickets"), ("collection", "collection")):
         assert bridge.newFromTemplate("sqlite", str(sandbox / f"{key}.jubadb"), "", {}, key, True)["ok"] is True
         assert bridge.currentTable == table
 

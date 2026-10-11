@@ -2,6 +2,17 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-11.**
 
+## 2026-10-11 — The Home collection template uses a lookup
+
+The Home collection template gains a `people` table (Name, no repeats,
+Phone), and an item's Lent to is a lookup into it. Blank, as most items
+are, stays blank. Sam is in people with nothing borrowed, so lending
+something to someone new is one pick. The "Lent out" view now sorts by who
+has the item, then title. The "Who has what" report follows that view, and a
+report that follows a view uses the view's sort, so the report's own sort
+was never used; it is gone. Checked on a database file, PostgreSQL 17 and
+MariaDB 11.
+
 ## Release 0.4.3 — 2026-10-11
 
 The Inventory template's lookup, and templates opening on their main table
