@@ -106,6 +106,21 @@ _SORT_SCHEMA = {
     "maxItems": 3,
 }
 
+#: Report settings beyond the page: which rows, their order, groups and totals.
+_REPORT_ROW_PROPERTIES = {
+    "sort": _SORT_SCHEMA,
+    "group_by": {"type": "string", "description": "A field: rows are grouped by it, with a heading per group."},
+    "totals": {
+        "type": "object",
+        "description": "Number columns to total: {field: 'sum' | 'average'}. Per group and for the whole report.",
+        "additionalProperties": {"type": "string", "enum": ["sum", "average"]},
+    },
+    "show_count": {"type": "boolean", "description": "Say how many rows (per group and overall). Default: on when grouping."},
+    "header_text": {"type": "string", "description": "A small line at the top of every page."},
+    "footer_text": {"type": "string", "description": "Replaces the title at the foot of every page."},
+    "view": {"type": "string", "description": "A saved view's name: its filter and sort choose the rows (overrides filter and sort)."},
+}
+
 _TARGET_PROPERTIES = {
     "backend": {"type": "string", "enum": _BACKEND_ENUM, "default": "sqlite"},
     "path": {"type": "string", "description": "The database file, for the sqlite backend."},
@@ -352,7 +367,8 @@ def tool_get_form(arguments: dict[str, Any]) -> dict[str, Any]:
 
 def _report_spec(arguments: dict[str, Any]) -> dict[str, Any]:
     keys = ("name", "table", "title", "columns", "page_size", "orientation", "margins_mm",
-            "fit_to_width", "font_pt", "show_row_numbers", "filter")
+            "fit_to_width", "font_pt", "show_row_numbers", "filter", "sort", "group_by", "totals",
+            "show_count", "header_text", "footer_text", "view")
     return {key: arguments[key] for key in keys if key in arguments}
 
 
@@ -672,6 +688,7 @@ TOOLS: list[dict[str, Any]] = [
                 "font_pt": {"type": "number", "default": 10},
                 "show_row_numbers": {"type": "boolean", "default": False},
                 "filter": _FILTER_SCHEMA,
+                **_REPORT_ROW_PROPERTIES,
             },
             "required": ["table"],
             "additionalProperties": False,
@@ -721,6 +738,7 @@ TOOLS: list[dict[str, Any]] = [
                 "font_pt": {"type": "number", "default": 10},
                 "show_row_numbers": {"type": "boolean", "default": False},
                 "filter": _FILTER_SCHEMA,
+                **_REPORT_ROW_PROPERTIES,
                 "overwrite": {"type": "boolean", "default": False},
             },
             "required": ["file"],

@@ -13,6 +13,7 @@ from .errors import JubakoError
 from .paths import DB_SUFFIXES, resolve_under_roots
 from .reports import FORM_KEY, REPORT_KEY, list_reports, load_form, load_report, normalise_spec
 from .fields import FIELD_TYPES, Field, slugify_name
+from .filters import filter_fields, rename_in_filter
 from .storage import SQLITE
 from .views import forget_views, retarget_views
 from .storage.base import Storage, TableInfo
@@ -122,15 +123,44 @@ def _retarget(storage: Storage, table: str, old: str, new: str | None) -> None:
         if item["table"] != table:
             continue
         spec = load_report(storage, item["name"])
-        if not spec or old not in spec.get("columns", []):
+        if not spec or not _report_uses(spec, old):
             continue
-        columns = [(new if c == old else c) for c in spec["columns"] if new or c != old]
-        if not columns:
+        sort = list(spec.get("sort") or [])
+        totals = dict(spec.get("totals") or {})
+        if new:
+            spec["columns"] = [(new if c == old else c) for c in spec.get("columns", [])]
+            spec["filter"] = rename_in_filter(spec.get("filter"), old, new)
+            spec["sort"] = [{**s, "field": new} if s.get("field") == old else s for s in sort]
+            spec["group_by"] = new if spec.get("group_by") == old else spec.get("group_by", "")
+            spec["totals"] = {(new if name == old else name): how for name, how in totals.items()}
+        else:
+            spec["columns"] = [c for c in spec.get("columns", []) if c != old]
+            # Rules on a field that is gone cannot be kept; the report shows its rows unfiltered.
+            if old in filter_fields(spec.get("filter")):
+                spec["filter"] = None
+            spec["sort"] = [s for s in sort if s.get("field") != old]
+            spec["group_by"] = "" if spec.get("group_by") == old else spec.get("group_by", "")
+            spec["totals"] = {name: how for name, how in totals.items() if name != old}
+        if not spec["columns"]:
             _forget_key(storage, REPORT_KEY + item["name"])
             continue
         # Labels and types are re-read from the table, so they match its new shape.
-        fresh = normalise_spec(storage, {**spec, "columns": columns})
+        try:
+            fresh = normalise_spec(storage, spec)
+        except JubakoError:
+            # The saved view it used went with the field.
+            fresh = normalise_spec(storage, {**spec, "view": ""})
         storage.set_info(REPORT_KEY + item["name"], json.dumps(fresh))
+
+
+def _report_uses(spec: dict[str, Any], name: str) -> bool:
+    return (
+        name in spec.get("columns", [])
+        or name in filter_fields(spec.get("filter"))
+        or any(item.get("field") == name for item in spec.get("sort") or [])
+        or spec.get("group_by") == name
+        or name in (spec.get("totals") or {})
+    )
 
 
 def _forget_key(storage: Storage, key: str) -> None:

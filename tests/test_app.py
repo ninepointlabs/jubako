@@ -887,3 +887,55 @@ def test_views_keep_the_sort_from_the_bridge(pets):
     pets.sortBy("name")
     assert pets.currentView == ""
     assert pets.setSort([{"field": "nope"}])["ok"] is False
+
+
+def test_the_report_dialog_takes_the_sort_rules_and_a_saved_view(app, bridge, sandbox, pets_csv):
+    from PySide6.QtCore import QEvent
+    from PySide6.QtQml import QQmlEngine, QQmlExpression
+
+    engine, window, _ = _load_window(app, bridge)
+    assert bridge.importIntoNew(str(pets_csv), str(sandbox / "print.jubadb"))["ok"] is True
+    report = engine._report
+    try:
+        bridge.setFilterRules("any", [{"field": "age", "op": "more_than", "value": "3"},
+                                      {"field": "name", "op": "is", "value": "Pip"}])
+        bridge.sortBy("name")
+        dialog = window.findChild(QObject, "reportDialog")
+        inner = dialog.findChild(QObject, "reportCountBox")
+
+        def ask(code):  # evaluated inside the dialog, where its ids are in scope
+            expression = QQmlExpression(QQmlEngine.contextForObject(inner), inner, code)
+            value = expression.evaluate()[0]
+            assert not expression.hasError(), expression.error().toString()
+            return value
+
+        ask("win.startReport()")
+        app.processEvents()
+        spec = report.property("spec")
+        assert spec["filter_words"] == "age is more than 3 or name is Pip"
+        assert spec["sort_words"] == "name, A to Z"
+        assert report.property("rowCount") == 3
+
+        ask("dialog.groupBy = 'is_good'; dialog.setTotal('weight_kg', 'average'); countBox.checked = true;"
+            " footerField.text = 'Kept by the vet'; dialog.rebuild()")
+        spec = report.property("spec")
+        assert spec["group_by"] == "is_good" and spec["totals"] == {"weight_kg": "average"}
+        assert spec["show_count"] is True and spec["footer_text"] == "Kept by the vet"
+        assert ask("dialog.numberColumns().map(f => f.name).join(',')") == "age,weight_kg"
+
+        # Kept, closed and loaded again, it comes back the same.
+        assert report.keep("Good boys")["ok"] is True
+        ask("dialog.groupBy = ''; dialog.totals = ({}); dialog.loadKept('Good boys')")
+        assert ask("dialog.groupBy") == "is_good"
+        assert ask("dialog.totals.weight_kg") == "average"
+        assert ask("footerField.text") == "Kept by the vet"
+
+        # A table showing a saved view prints from it, by name.
+        assert bridge.saveView("Big ones", False, False)["ok"] is True
+        ask("dialog.close(); win.startReport()")
+        assert ask("dialog.viewName") == "Big ones"
+        assert report.property("spec")["view"] == "Big ones"
+        assert report.property("rowCount") == 3
+    finally:
+        engine.deleteLater()
+        app.sendPostedEvents(None, QEvent.Type.DeferredDelete)

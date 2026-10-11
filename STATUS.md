@@ -2,7 +2,7 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-10.**
 
-## 2026-10-10 — Access features, part 1: queries
+## 2026-10-10 — Access features, part 1: queries and reports
 
 Working through `TODO.md` (the Access features worth having, items 1–7).
 
@@ -23,9 +23,26 @@ Working through `TODO.md` (the Access features worth having, items 1–7).
 - **Views keep the sort.** A view is a filter and/or a sort. Field renames
   follow into rules and sorts; a dropped field deletes views whose rules use
   it, and only trims the sort of views that sorted by it.
-- CLI: `--filter` can repeat, `--any`, `--sort FIELD[:desc]` on `rows` and
-  `save-view`. MCP: `filter` takes `match`/`rules`; `sort` on `list_rows`
-  and `save_view`.
+- CLI: `--filter` can repeat, `--any`, `--sort FIELD[:desc]` on `rows`,
+  `save-view` and `report`. MCP: `filter` takes `match`/`rules`; `sort` on
+  `list_rows`, `save_view` and reports.
+
+**6. Reports.**
+- **Order, groups, totals.** Sort by a field; "A heading for each <field>"
+  with a row count per group; per number column "Sum" or "Average", per group
+  (subtotal) and for the report. "Say how many rows" adds counts (on by
+  default when grouping). Blanks group as "(blank)", last.
+- **Header and footer.** A small line on top of every page; the footer text
+  replaces the title at the foot of each page.
+- **From a saved view.** A report can name a view; it then follows the
+  view's filter and sort. Renaming the view updates the report; deleting it
+  copies the view's rules into the report so it prints the same rows. When
+  the table is showing a view, Print report starts from it.
+- Core: `reports.report_lines` turns rows into lines (group / row /
+  subtotal / total); `ReportDocument(spec, lines=...)` paints lines, never
+  leaves a group heading alone at the foot of a page, and numbers rows
+  straight through groups. Field renames and drops follow into a report's
+  sort, group, totals and filter.
 
 **Test helper fix.** `tests/test_app.py::_load_window` made the `Report`
 object without keeping a reference, so Python collected it and the window's
@@ -33,7 +50,7 @@ report dialog saw `null` (the "Cannot read property 'pageCount' of null"
 warnings in test runs). It is now parented to the engine. The real app
 (`main.py`) was not affected.
 
-180 tests pass.
+190 tests pass.
 
 ## Fix 2026-09-28 — theme palette, number text, form and filter bar
 

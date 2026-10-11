@@ -4,6 +4,11 @@ A *report* is a tidy, fitted table of rows: pick the table, the columns, a
 title, the page size and orientation. "Fitted" means the columns shrink and
 the text wraps so the whole table fits the page width, nothing clipped.
 
+Rows can be sorted, grouped by a field (a heading per group, with how many
+rows it has) and totalled: a number column can show its sum or its average,
+per group and for the whole report. A report can take its rows from a saved
+view by name, so it follows the view when the view changes.
+
 This module holds the parts that need no toolkit: the spec, the row fetch,
 the column-fitting arithmetic, and where forms and reports are remembered
 (inside the database itself, in Jubako's own info table). Drawing the
@@ -17,7 +22,8 @@ import json
 from typing import Any
 
 from .errors import BadName, JubakoError
-from .filters import filter_words, normalise_filter
+from .fields import INTEGER, REAL
+from .filters import filter_words, normalise_filter, normalise_sort, sort_words
 from .paths import resolve_under_roots
 from .storage.base import Storage
 
@@ -33,6 +39,11 @@ CHUNK = 1000
 
 FORM_KEY = "form:"
 REPORT_KEY = "report:"
+
+#: How a number column can be totalled.
+TOTALS = ("sum", "average")
+NUMBER_TYPES = {INTEGER, REAL}
+MAX_TEXT = 200
 
 
 # -------------------------------------------------------------------------
@@ -64,15 +75,57 @@ def normalise_spec(storage: Storage, spec: dict[str, Any]) -> dict[str, Any]:
     font_pt = float(spec.get("font_pt", 10))
     font_pt = min(max(font_pt, 6.0), 16.0)
 
-    row_filter = normalise_filter(info.fields, spec.get("filter") or None)
+    view_name = str(spec.get("view") or "").strip()
+    if view_name:
+        from .views import get_view  # noqa: PLC0415 - views imports nothing from here, but keep it lazy
+
+        view = get_view(storage, table, view_name)
+        if view is None:
+            raise JubakoError(f"The saved view “{view_name}” is not there any more. Pick another, or none.")
+        row_filter = normalise_filter(info.fields, view.get("filter") or None)
+        sort = normalise_sort(info.fields, view.get("sort") or None)
+    else:
+        row_filter = normalise_filter(info.fields, spec.get("filter") or None)
+        sort = normalise_sort(info.fields, spec.get("sort") or None)
+
+    group_by = str(spec.get("group_by") or "").strip()
+    if group_by and group_by not in known:
+        raise BadName(f"The table {table!r} has no field called {group_by!r}.")
+
+    totals: dict[str, str] = {}
+    for name, how in dict(spec.get("totals") or {}).items():
+        if not how:
+            continue
+        how = str(how).lower()
+        if how not in TOTALS:
+            raise JubakoError(f"A column can show its sum or its average, not {how!r}.")
+        if name not in known:
+            raise BadName(f"The table {table!r} has no field called {name!r}.")
+        if known[name].type not in NUMBER_TYPES:
+            raise JubakoError(f"Only number columns can be totalled; {known[name].title} is not one.")
+        if name in columns:
+            totals[name] = how
+
+    show_count = spec.get("show_count")
+    show_count = bool(group_by) if show_count is None else bool(show_count)
 
     return {
         "name": str(spec.get("name") or ""),
         "table": table,
         "title": str(spec.get("title") or info.name.replace("_", " ").title()),
         "columns": columns,
+        "view": view_name,
         "filter": row_filter,
         "filter_words": filter_words(info.fields, row_filter),
+        "sort": sort,
+        "sort_words": sort_words(info.fields, sort),
+        "group_by": group_by,
+        "group_label": known[group_by].title if group_by else "",
+        "group_type": known[group_by].type if group_by else "",
+        "totals": totals,
+        "show_count": show_count,
+        "header_text": str(spec.get("header_text") or "").strip()[:MAX_TEXT],
+        "footer_text": str(spec.get("footer_text") or "").strip()[:MAX_TEXT],
         "labels": [known[name].title for name in columns],
         "types": [known[name].type for name in columns],
         "page_size": page_size,
@@ -91,21 +144,141 @@ def page_points(spec: dict[str, Any]) -> tuple[float, float]:
     return width, height
 
 
-def fetch_rows(storage: Storage, spec: dict[str, Any]) -> list[list[str]]:
-    """Every row of the table as display text, in the report's column order."""
+def report_sort(spec: dict[str, Any]) -> list[dict[str, Any]]:
+    """The order rows are read in: the group field first (so groups come out together), then the sort."""
+    sort = list(spec.get("sort") or [])
+    group = spec.get("group_by")
+    if not group:
+        return sort
+    first = next((item for item in sort if item["field"] == group), {"field": group, "descending": False})
+    return ([first] + [item for item in sort if item["field"] != group])[:3]
+
+
+def fetch_values(storage: Storage, spec: dict[str, Any]) -> tuple[list[list[Any]], list[Any]]:
+    """Every row's raw values in the report's column order, and each row's group value."""
     columns = spec["columns"]
-    types = dict(zip(columns, spec["types"]))
-    out: list[list[str]] = []
+    group = spec.get("group_by") or ""
+    out: list[list[Any]] = []
+    groups: list[Any] = []
     offset = 0
+    sort = report_sort(spec)
     while len(out) < MAX_REPORT_ROWS:
-        page = storage.list_rows(spec["table"], limit=CHUNK, offset=offset, where=spec.get("filter"))
+        page = storage.list_rows(spec["table"], limit=CHUNK, offset=offset, where=spec.get("filter"), sort=sort)
         if not page["rows"]:
             break
         positions = [page["columns"].index(name) for name in columns]
+        group_at = page["columns"].index(group) if group else -1
         for row in page["rows"]:
-            out.append([cell_text(row[pos], types[name]) for pos, name in zip(positions, columns)])
+            out.append([row[pos] for pos in positions])
+            groups.append(row[group_at] if group else None)
         offset += CHUNK
-    return out
+    return out[:MAX_REPORT_ROWS], groups[:MAX_REPORT_ROWS]
+
+
+def fetch_rows(storage: Storage, spec: dict[str, Any]) -> list[list[str]]:
+    """Every row of the table as display text, in the report's column order."""
+    types = spec["types"]
+    values, _ = fetch_values(storage, spec)
+    return [[cell_text(value, kind) for value, kind in zip(row, types)] for row in values]
+
+
+def fetch_lines(storage: Storage, spec: dict[str, Any]) -> list[dict[str, Any]]:
+    """The report as lines to print: group headings, rows, subtotals and the grand total."""
+    values, groups = fetch_values(storage, spec)
+    return report_lines(spec, values, groups)
+
+
+def report_lines(spec: dict[str, Any], values: list[list[Any]], groups: list[Any] | None = None) -> list[dict[str, Any]]:
+    """Turn raw rows into printable lines. No toolkit, no database: easy to test.
+
+    Lines are {"kind": "row", "cells": [...]}, {"kind": "group", "text": ..., "count": ...},
+    {"kind": "subtotal" | "total", "cells": [...], "label": ...}.
+    """
+    columns = spec["columns"]
+    types = spec["types"]
+    totals = spec.get("totals") or {}
+    grouped = bool(spec.get("group_by"))
+    show_count = bool(spec.get("show_count"))
+    groups = groups if groups is not None else [None] * len(values)
+
+    def as_text(row: list[Any]) -> list[str]:
+        return [cell_text(value, kind) for value, kind in zip(row, types)]
+
+    def summary(rows: list[list[Any]], kind: str, label: str) -> dict[str, Any]:
+        cells = []
+        for index, name in enumerate(columns):
+            how = totals.get(name)
+            if not how:
+                cells.append("")
+                continue
+            numbers = [row[index] for row in rows if isinstance(row[index], (int, float)) and not isinstance(row[index], bool)]
+            cells.append(_total_text(numbers, how))
+        return {"kind": kind, "cells": cells, "label": label}
+
+    lines: list[dict[str, Any]] = []
+    if grouped:
+        start = 0
+        while start < len(values):
+            end = start
+            while end < len(values) and _same_group(groups[end], groups[start]):
+                end += 1
+            members = values[start:end]
+            lines.append({"kind": "group",
+                          "text": f"{spec.get('group_label') or spec['group_by']}: {_group_text(groups[start], spec.get('group_type'))}",
+                          "count": _rows_word(len(members)) if show_count else ""})
+            lines.extend({"kind": "row", "cells": as_text(row)} for row in members)
+            if totals:
+                lines.append(summary(members, "subtotal", _totals_label(totals)))
+            start = end
+    else:
+        lines.extend({"kind": "row", "cells": as_text(row)} for row in values)
+
+    if values and (totals or show_count):
+        label = "All rows" if grouped else ""
+        if totals:
+            label = (label + " · " if label else "") + _totals_label(totals)
+        if show_count:
+            label = (label + " · " if label else "") + _rows_word(len(values))
+        lines.append(summary(values, "total", label))
+    return lines
+
+
+def _same_group(a: Any, b: Any) -> bool:
+    return (a is None and b is None) or (a is not None and b is not None and a == b)
+
+
+def _group_text(value: Any, kind: str | None) -> str:
+    if value is None or value == "":
+        return "(blank)"
+    return cell_text(value, kind)
+
+
+def _rows_word(count: int) -> str:
+    return "1 row" if count == 1 else f"{count} rows"
+
+
+def _totals_label(totals: dict[str, str]) -> str:
+    kinds = set(totals.values())
+    if kinds == {"sum"}:
+        return "Total"
+    if kinds == {"average"}:
+        return "Average"
+    return "Totals"
+
+
+def _total_text(numbers: list[float], how: str) -> str:
+    if not numbers:
+        return ""
+    if how == "sum":
+        result = sum(numbers)
+    else:
+        result = sum(numbers) / len(numbers)
+    if isinstance(result, float):
+        result = round(result, 2)
+        if result.is_integer():
+            result = int(result)
+    text = f"{result:,}" if isinstance(result, int) else f"{result:,.2f}".rstrip("0").rstrip(".")
+    return ("avg " + text) if how == "average" else text
 
 
 def cell_text(value: Any, kind: str | None) -> str:
@@ -179,14 +352,14 @@ def export_report(
 
     from .printing import ReportDocument  # noqa: PLC0415 - needs Qt, only for PDF
 
-    document = ReportDocument(full, fetch_rows(storage, full))
+    document = ReportDocument(full, lines=fetch_lines(storage, full))
     pages = document.write_pdf(str(target))
     return {
         "table": full["table"],
         "title": full["title"],
         "file": str(target),
         "format": "pdf",
-        "rows_written": len(document.rows),
+        "rows_written": document.row_count,
         "pages": pages,
         "page_size": full["page_size"],
         "orientation": full["orientation"],
@@ -285,6 +458,30 @@ def list_reports(storage: Storage) -> list[dict[str, Any]]:
             out.append({"name": spec.get("name") or str(key)[len(REPORT_KEY):],
                         "table": spec.get("table", ""), "title": spec.get("title", "")})
     return sorted(out, key=lambda item: item["name"].lower())
+
+
+def follow_view(storage: Storage, table: str, old: str, new: str | None, view: dict[str, Any] | None = None) -> list[str]:
+    """A saved view was renamed (`new`) or deleted: reports that used it follow, or keep its rules.
+
+    A report whose view is deleted keeps printing the same rows: the view's
+    filter and sort are copied into the report itself.
+    """
+    touched = []
+    for item in list_reports(storage):
+        if item["table"] != table:
+            continue
+        spec = load_report(storage, item["name"])
+        if not spec or spec.get("view") != old:
+            continue
+        if new:
+            spec["view"] = new
+        else:
+            spec["view"] = ""
+            spec["filter"] = (view or {}).get("filter")
+            spec["sort"] = (view or {}).get("sort") or []
+        storage.set_info(REPORT_KEY + spec["name"], json.dumps(spec))
+        touched.append(spec["name"])
+    return touched
 
 
 def delete_report(storage: Storage, name: str) -> bool:

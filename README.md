@@ -35,8 +35,9 @@ for exactly what works today.
   2024-01-01"), and tap a column heading to sort. Save what you keep using
   as a view, like "Still here", and it lives in the database file.
 - **Print a tidy report.** Pick the columns, a title, the page size. Columns
-  shrink and wrap so the whole table fits the page width. See it before you
-  print it, or save it as a PDF.
+  shrink and wrap so the whole table fits the page width. Sort it, group it
+  with a heading per group, total the number columns, add your own header
+  and footer line. See it before you print it, or save it as a PDF.
 - **Send it back out.** Write any table to CSV, Excel (.xlsx) or PDF.
 - **Let an agent do it.** The MCP server gives Claude Code (or any MCP client)
   the same jobs, so "turn this spreadsheet into a database" just works.

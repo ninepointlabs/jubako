@@ -158,3 +158,146 @@ def test_cell_text_drops_the_trailing_point_zero_on_whole_numbers():
     assert cell_text(7, "integer") == "7"
     assert cell_text(True, "boolean") == "Yes"
     assert cell_text(None, "real") == ""
+
+
+# -- sorting, groups, totals, header and footer, saved views ------------------------
+
+@pytest.fixture
+def shop(database):
+    database.create_table("orders", [
+        Field("item"), Field("kind"), Field("qty", "integer"), Field("price", "real"), Field("paid", "boolean"),
+    ])
+    for row in [
+        ("Bell", "Parts", 2, 4.5, True),
+        ("Bike", "Bikes", 1, 300.0, False),
+        ("Tube", "Parts", 5, 6.25, True),
+        ("Trike", "Bikes", 1, 450.0, True),
+        ("Gift card", None, 1, 20.0, False),
+    ]:
+        database.add_row("orders", dict(zip(["item", "kind", "qty", "price", "paid"], row)))
+    return database
+
+
+def test_report_sorts_its_rows(shop):
+    spec = normalise_spec(shop, {"table": "orders", "columns": ["item", "price"],
+                                 "sort": [{"field": "price", "descending": True}]})
+    assert [row[0] for row in fetch_rows(shop, spec)] == ["Trike", "Bike", "Gift card", "Tube", "Bell"]
+    assert spec["sort_words"] == "Price, highest first"
+
+
+def test_report_groups_counts_and_totals(shop):
+    from jubako.reports import fetch_lines
+
+    spec = normalise_spec(shop, {"table": "orders", "columns": ["item", "qty", "price"], "group_by": "kind",
+                                 "sort": [{"field": "item"}], "totals": {"qty": "sum", "price": "average"}})
+    assert spec["show_count"] is True          # grouping counts rows unless told not to
+    lines = fetch_lines(shop, spec)
+    kinds = [line["kind"] for line in lines]
+    # Blank kind sorts last, like everywhere else.
+    assert kinds == ["group", "row", "row", "subtotal", "group", "row", "row", "subtotal",
+                     "group", "row", "subtotal", "total"]
+    assert lines[0] == {"kind": "group", "text": "Kind: Bikes", "count": "2 rows"}
+    assert [line["cells"][0] for line in lines if line["kind"] == "row"] == ["Bike", "Trike", "Bell", "Tube", "Gift card"]
+    assert lines[3]["cells"] == ["", "2", "avg 375"]
+    assert lines[3]["label"] == "Totals"
+    assert lines[8]["text"] == "Kind: (blank)"
+    assert lines[-1] == {"kind": "total", "cells": ["", "10", "avg 156.15"], "label": "All rows · Totals · 5 rows"}
+
+
+def test_report_totals_without_groups(shop):
+    from jubako.reports import fetch_lines
+
+    spec = normalise_spec(shop, {"table": "orders", "columns": ["item", "price"], "totals": {"price": "sum"},
+                                 "filter": {"field": "paid", "op": "is", "value": "yes"}})
+    lines = fetch_lines(shop, spec)
+    assert [line["kind"] for line in lines] == ["row", "row", "row", "total"]
+    assert lines[-1] == {"kind": "total", "cells": ["", "460.75"], "label": "Total"}
+    counted = normalise_spec(shop, {"table": "orders", "columns": ["item"], "show_count": True})
+    assert fetch_lines(shop, counted)[-1] == {"kind": "total", "cells": [""], "label": "5 rows"}
+
+
+def test_report_totals_are_checked(shop):
+    with pytest.raises(JubakoError, match="Only number columns"):
+        normalise_spec(shop, {"table": "orders", "totals": {"item": "sum"}})
+    with pytest.raises(JubakoError, match="sum or its average"):
+        normalise_spec(shop, {"table": "orders", "totals": {"qty": "median"}})
+    with pytest.raises(BadName):
+        normalise_spec(shop, {"table": "orders", "group_by": "colour"})
+    # A total on a column the report does not print is left out.
+    assert normalise_spec(shop, {"table": "orders", "columns": ["item"], "totals": {"qty": "sum"}})["totals"] == {}
+
+
+def test_report_uses_a_saved_view_and_follows_it(shop):
+    from jubako import views
+
+    views.save_view(shop, "orders", "Unpaid", {"field": "paid", "op": "is", "value": "no"},
+                    sort=[{"field": "price", "descending": True}])
+    spec = normalise_spec(shop, {"table": "orders", "columns": ["item"], "view": "Unpaid",
+                                 "filter": {"field": "qty", "op": "more_than", "value": 100}})
+    assert spec["filter_words"] == "Paid is No"          # the view wins over a filter given alongside
+    assert [row[0] for row in fetch_rows(shop, spec)] == ["Bike", "Gift card"]
+    save_report(shop, {**spec, "name": "Chase up"})
+    views.rename_view(shop, "orders", "Unpaid", "Not paid")
+    assert load_report(shop, "Chase up")["view"] == "Not paid"
+    # Deleting the view keeps the report printing the same rows.
+    views.delete_view(shop, "orders", "Not paid")
+    kept = load_report(shop, "Chase up")
+    assert kept["view"] == ""
+    assert [row[0] for row in fetch_rows(shop, normalise_spec(shop, kept))] == ["Bike", "Gift card"]
+    with pytest.raises(JubakoError, match="not there any more"):
+        normalise_spec(shop, {"table": "orders", "view": "Nope"})
+
+
+def test_report_header_footer_and_pdf_with_groups(shop, sandbox):
+    pytest.importorskip("PySide6")
+    from jubako.printing import ReportDocument
+    from jubako.reports import fetch_lines
+
+    spec = normalise_spec(shop, {"table": "orders", "group_by": "kind", "totals": {"price": "sum"},
+                                 "header_text": "Nine Point Bikes", "footer_text": "Internal",
+                                 "show_row_numbers": True})
+    assert spec["header_text"] == "Nine Point Bikes" and spec["footer_text"] == "Internal"
+    document = ReportDocument(spec, lines=fetch_lines(shop, spec))
+    assert document.row_count == 5
+    # Row numbers count rows only, straight through the groups.
+    assert [row[0] for row in document.rows] == ["1", "2", "3", "4", "5"]
+    assert document.page_count == 1
+    assert not document.preview_image(0, 400).isNull()
+    result = export_report(shop, spec, str(sandbox / "grouped.pdf"))
+    assert result["rows_written"] == 5 and Path(result["file"]).stat().st_size > 1000
+
+
+def test_a_long_grouped_report_never_leaves_a_heading_alone(database):
+    pytest.importorskip("PySide6")
+    from jubako.printing import ReportDocument
+    from jubako.reports import fetch_lines
+
+    database.create_table("many", [Field("team"), Field("who")])
+    for i in range(400):
+        database.add_row("many", {"team": f"Team {i // 7:02d}", "who": f"Person {i}"})
+    spec = normalise_spec(database, {"table": "many", "group_by": "team"})
+    document = ReportDocument(spec, lines=fetch_lines(database, spec))
+    assert document.page_count > 3
+    for start, end in document.pages:
+        assert document.lines[end - 1]["kind"] != "group" or end == len(document.lines)
+
+
+def test_report_follows_field_renames_and_drops(shop):
+    from jubako import schema
+
+    save_report(shop, {"name": "By kind", "table": "orders", "columns": ["item", "qty", "kind"], "group_by": "kind",
+                       "sort": [{"field": "qty"}], "totals": {"qty": "sum"},
+                       "filter": {"field": "paid", "op": "is", "value": "yes"}})
+    schema.rename_field(shop, "orders", "qty", "quantity")
+    kept = load_report(shop, "By kind")
+    assert kept["columns"] == ["item", "quantity", "kind"]
+    assert kept["sort"] == [{"field": "quantity", "descending": False}]
+    assert kept["totals"] == {"quantity": "sum"}
+    schema.rename_field(shop, "orders", "kind", "category")
+    assert load_report(shop, "By kind")["group_by"] == "category"
+    schema.drop_field(shop, "orders", "category")
+    kept = load_report(shop, "By kind")
+    assert kept["group_by"] == "" and kept["columns"] == ["item", "quantity"]
+    schema.drop_field(shop, "orders", "paid")
+    kept = load_report(shop, "By kind")
+    assert kept["filter"] is None and kept["totals"] == {"quantity": "sum"}

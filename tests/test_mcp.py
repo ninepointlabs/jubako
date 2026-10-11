@@ -306,3 +306,18 @@ def test_rules_and_sort_through_the_tools(sandbox, pets_csv):
     assert rows["sort"] == [{"field": "name", "descending": True}]
     saved = HANDLERS["save_view"]({"path": db, "table": "pets", "name": "Youngest", "sort": [{"field": "age"}]})
     assert saved["words"] == "sorted by age, lowest first" and saved["filter"] is None
+
+
+def test_grouped_report_through_the_tools(sandbox, pets_csv):
+    pytest.importorskip("PySide6")
+    from jubako_mcp.server import HANDLERS
+
+    db = str(sandbox / "grouped.jubadb")
+    HANDLERS["create_database"]({"title": "G", "path": db})
+    HANDLERS["import_spreadsheet"]({"path": db, "file": str(pets_csv)})
+    kept = HANDLERS["create_report"]({"path": db, "table": "pets", "name": "By goodness", "group_by": "is_good",
+                                      "totals": {"weight_kg": "sum"}, "sort": [{"field": "name"}],
+                                      "header_text": "Vet list"})
+    assert kept["report"]["group_by"] == "is_good" and kept["report"]["show_count"] is True
+    result = HANDLERS["export_report"]({"path": db, "name": "By goodness", "file": str(sandbox / "g.pdf")})
+    assert result["rows_written"] == 4

@@ -98,6 +98,14 @@ def cmd_report(args: argparse.Namespace) -> int:
                 "page_size": args.page,
                 "orientation": "landscape" if args.landscape else "portrait",
                 "fit_to_width": not args.no_fit,
+                "filter": _filter_from_args(args),
+                "sort": _sort_from_args(args),
+                "group_by": args.group_by,
+                "totals": dict(item.partition(":")[::2] for item in args.total or []) or None,
+                "show_count": True if args.count else None,
+                "header_text": args.header,
+                "footer_text": args.footer,
+                "view": args.view,
             },
             args.out,
             overwrite=args.overwrite,
@@ -244,6 +252,13 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_argument("--page", default="letter", choices=["letter", "a4", "legal"])
     sub.add_argument("--landscape", action="store_true")
     sub.add_argument("--no-fit", action="store_true", help="Keep natural column widths")
+    _filter_arguments(sub)
+    sub.add_argument("--view", help="Use a saved view's filter and sort")
+    sub.add_argument("--group-by", metavar="FIELD", help="A heading per value of this field")
+    sub.add_argument("--total", action="append", metavar="FIELD:sum|average", help="Total a number column")
+    sub.add_argument("--count", action="store_true", help="Say how many rows (on by default when grouping)")
+    sub.add_argument("--header", help="A small line at the top of every page")
+    sub.add_argument("--footer", help="Replaces the title at the foot of every page")
     sub.add_argument("--overwrite", action="store_true")
     sub.set_defaults(func=cmd_report)
 

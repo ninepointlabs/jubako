@@ -43,11 +43,11 @@ and the window, with tests. Work order: 7a → 6 → 4 → 2 → 3 → 5 → 7b.
 
 ## 6. Reports
 
-- [ ] Sort order (one or more fields, up or down).
-- [ ] Group by a field, with a heading per group.
-- [ ] Totals: row count per group and overall; sum and average for numbers.
-- [ ] Your own header and footer line.
-- [ ] Use a saved view by name.
+- [x] Sort order (one or more fields, up or down).
+- [x] Group by a field, with a heading per group.
+- [x] Totals: row count per group and overall; sum and average for numbers.
+- [x] Your own header and footer line.
+- [x] Use a saved view by name.
 
 ## 7. Queries
 

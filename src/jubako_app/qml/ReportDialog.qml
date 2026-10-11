@@ -2,8 +2,9 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// Report designer lite: pick columns, a title, the page; see it; print it or
-// save a PDF. The preview is the real thing — the same pages that print.
+// Report designer lite: pick columns, a title, the page; which rows and in what
+// order, groups and totals; see it; print it or save a PDF. The preview is the
+// real thing — the same pages that print.
 Dialog {
     id: dialog
     objectName: "reportDialog"
@@ -13,14 +14,58 @@ Dialog {
     property int page: 0
     property bool ready: false
 
-    property var rowFilter: ({})        // {field, op, value} or {}
+    property var rowFilter: ({})        // the table's filter when the dialog opened, or {}
+    property bool hasFilter: !!(rowFilter.field || (rowFilter.rules && rowFilter.rules.length))
+    property string viewName: ""        // a saved view to take rows from, or ""
+    property var viewList: []           // [{name, words}] for this table
+    property string sortField: ""       // "" means the order rows were added
+    property bool sortDesc: false
+    property string groupBy: ""
+    property var totals: ({})           // {field: "sum" | "average"}
+
+    function fieldInfo(name) {
+        for (const f of allFields) if (f.name === name) return f
+        return null
+    }
+    function directionWords(type) {
+        if (type === "text") return ["A to Z", "Z to A"]
+        if (type === "date") return ["oldest first", "newest first"]
+        if (type === "boolean") return ["No first", "Yes first"]
+        return ["lowest first", "highest first"]
+    }
+    function numberColumns() {
+        return allFields.filter(f => (f.type === "integer" || f.type === "real") && picked.indexOf(f.name) >= 0)
+    }
+    function setTotal(name, how) {
+        const next = Object.assign({}, totals)
+        if (how) next[name] = how
+        else delete next[name]
+        totals = next
+        touched()
+    }
+    function filterFromBridge() {
+        const rules = Bridge.filterRules
+        if (rules.length === 0) return {}
+        if (rules.length === 1) return rules[0]
+        return { match: Bridge.filterMatch, rules: rules }
+    }
 
     function openFor(theTable, fields) {
         table = theTable
         allFields = fields
         picked = fields.map(f => f.name)
-        rowFilter = Bridge.filter && Bridge.filter.field ? Bridge.filter : {}
-        filterBox.checked = !!rowFilter.field
+        rowFilter = filterFromBridge()
+        filterBox.checked = hasFilter
+        viewList = Report.viewsFor(theTable)
+        // A table showing a saved view untouched prints from that view, so the report follows it.
+        viewName = Bridge.currentView
+        sortField = Bridge.sort.length > 0 ? Bridge.sort[0].field : ""
+        sortDesc = Bridge.sort.length > 0 ? Bridge.sort[0].descending : false
+        groupBy = ""
+        totals = ({})
+        countBox.checked = false
+        headerField.text = ""
+        footerField.text = ""
         titleField.text = theTable.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
         nameField.text = ""
         sizeBox.currentIndex = 0
@@ -41,8 +86,17 @@ Dialog {
         const s = r.spec
         table = s.table
         picked = s.columns
-        rowFilter = s.filter && s.filter.field ? s.filter : {}
-        filterBox.checked = !!rowFilter.field
+        rowFilter = s.filter ? s.filter : {}
+        filterBox.checked = hasFilter
+        viewList = Report.viewsFor(s.table)
+        viewName = s.view || ""
+        sortField = s.sort && s.sort.length > 0 ? s.sort[0].field : ""
+        sortDesc = s.sort && s.sort.length > 0 ? s.sort[0].descending : false
+        groupBy = s.group_by || ""
+        totals = s.totals || ({})
+        countBox.checked = !!s.show_count
+        headerField.text = s.header_text || ""
+        footerField.text = s.footer_text || ""
         titleField.text = s.title
         nameField.text = s.name
         sizeBox.currentIndex = Math.max(0, Report.pageSizes().indexOf(s.page_size))
@@ -66,7 +120,14 @@ Dialog {
             "fit_to_width": fitBox.checked,
             "font_pt": fontBox.value,
             "show_row_numbers": numbersBox.checked,
-            "filter": filterBox.checked && rowFilter.field ? rowFilter : null,
+            "view": viewName,
+            "filter": !viewName && filterBox.checked && hasFilter ? rowFilter : null,
+            "sort": !viewName && sortField ? [{ "field": sortField, "descending": sortDesc }] : [],
+            "group_by": groupBy,
+            "totals": totals,
+            "show_count": countBox.checked,
+            "header_text": headerField.text,
+            "footer_text": footerField.text,
             "name": nameField.text
         }
     }
@@ -131,17 +192,106 @@ Dialog {
                     }
                 }
 
-                Label { text: "Rows"; font.bold: true; Layout.topMargin: 6; visible: !!dialog.rowFilter.field }
-                CheckBox {
-                    id: filterBox
-                    visible: !!dialog.rowFilter.field
-                    text: "Only rows where " + (Report.spec.filter_words || Bridge.filterWords || "")
-                    onToggled: dialog.touched()
+                Label { text: "Rows"; font.bold: true; Layout.topMargin: 6 }
+                RowLayout {
+                    visible: dialog.viewList.length > 0
+                    Label { text: "From a saved view" }
+                    ComboBox {
+                        id: viewBox
+                        objectName: "reportViewBox"
+                        Layout.fillWidth: true
+                        model: ["None"].concat(dialog.viewList.map(v => v.name))
+                        currentIndex: Math.max(0, dialog.viewList.findIndex(v => v.name === dialog.viewName) + 1)
+                        onActivated: function(i) { dialog.viewName = i === 0 ? "" : dialog.viewList[i - 1].name; dialog.touched() }
+                    }
                 }
                 Label {
-                    visible: !dialog.rowFilter.field
+                    visible: dialog.viewName !== ""
+                    Layout.fillWidth: true
+                    text: {
+                        const v = dialog.viewList.find(v => v.name === dialog.viewName)
+                        return (v ? v.words : "") + "\nThe report follows the view when the view changes."
+                    }
+                    color: Theme.lightForeground
+                    font.pointSize: 10
+                    wrapMode: Text.WordWrap
+                }
+                CheckBox {
+                    id: filterBox
+                    visible: dialog.hasFilter && dialog.viewName === ""
+                    Layout.fillWidth: true
+                    text: "Only rows where " + (Report.spec.filter_words || Bridge.filterWords || "")
+                    onToggled: dialog.touched()
+                    contentItem: Label {
+                        leftPadding: filterBox.indicator.width + filterBox.spacing
+                        text: filterBox.text
+                        wrapMode: Text.WordWrap
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
+                Label {
+                    visible: !dialog.hasFilter && dialog.viewName === ""
                     Layout.fillWidth: true
                     text: "Every row. To print only some, filter the table first (Show rows where\u2026) and open this again."
+                    color: Theme.lightForeground
+                    font.pointSize: 10
+                    wrapMode: Text.WordWrap
+                }
+
+                Label { text: "Order"; font.bold: true; Layout.topMargin: 6; visible: dialog.viewName === "" }
+                RowLayout {
+                    visible: dialog.viewName === ""
+                    ComboBox {
+                        id: sortBox
+                        objectName: "reportSortBox"
+                        Layout.fillWidth: true
+                        model: ["As the rows were added"].concat(dialog.allFields.map(f => f.label))
+                        currentIndex: Math.max(0, dialog.allFields.findIndex(f => f.name === dialog.sortField) + 1)
+                        onActivated: function(i) { dialog.sortField = i === 0 ? "" : dialog.allFields[i - 1].name; dialog.touched() }
+                    }
+                    ComboBox {
+                        Layout.preferredWidth: 130
+                        visible: dialog.sortField !== ""
+                        model: dialog.directionWords((dialog.fieldInfo(dialog.sortField) || {}).type)
+                        currentIndex: dialog.sortDesc ? 1 : 0
+                        onActivated: function(i) { dialog.sortDesc = i === 1; dialog.touched() }
+                    }
+                }
+
+                Label { text: "Groups"; font.bold: true; Layout.topMargin: 6 }
+                ComboBox {
+                    id: groupBox
+                    objectName: "reportGroupBox"
+                    Layout.fillWidth: true
+                    model: ["No groups"].concat(dialog.allFields.map(f => "A heading for each " + f.label))
+                    currentIndex: Math.max(0, dialog.allFields.findIndex(f => f.name === dialog.groupBy) + 1)
+                    onActivated: function(i) {
+                        const was = dialog.groupBy
+                        dialog.groupBy = i === 0 ? "" : dialog.allFields[i - 1].name
+                        if (!was && dialog.groupBy) countBox.checked = true
+                        dialog.touched()
+                    }
+                }
+
+                Label { text: "Totals"; font.bold: true; Layout.topMargin: 6 }
+                CheckBox { id: countBox; objectName: "reportCountBox"; text: "Say how many rows"; onToggled: dialog.touched() }
+                Repeater {
+                    model: dialog.numberColumns()
+                    delegate: RowLayout {
+                        required property var modelData
+                        Label { text: modelData.label; Layout.fillWidth: true; elide: Text.ElideRight }
+                        ComboBox {
+                            Layout.preferredWidth: 130
+                            model: ["No total", "Sum", "Average"]
+                            currentIndex: dialog.totals[modelData.name] === "sum" ? 1 : dialog.totals[modelData.name] === "average" ? 2 : 0
+                            onActivated: function(i) { dialog.setTotal(modelData.name, ["", "sum", "average"][i]) }
+                        }
+                    }
+                }
+                Label {
+                    visible: dialog.numberColumns().length === 0
+                    Layout.fillWidth: true
+                    text: "Number columns can show a sum or an average. This report has none."
                     color: Theme.lightForeground
                     font.pointSize: 10
                     wrapMode: Text.WordWrap
@@ -167,6 +317,10 @@ Dialog {
                     Label { text: "Text size" }
                     SpinBox { id: fontBox; from: 6; to: 16; value: 10; onValueModified: dialog.touched() }
                 }
+                Label { text: "Top of every page"; font.bold: true; Layout.topMargin: 6 }
+                TextField { id: headerField; objectName: "reportHeader"; Layout.fillWidth: true; placeholderText: "Optional, like your shop's name"; onTextEdited: dialog.touched() }
+                Label { text: "Foot of every page"; font.bold: true }
+                TextField { id: footerField; objectName: "reportFooter"; Layout.fillWidth: true; placeholderText: "Optional; the title is used when blank"; onTextEdited: dialog.touched() }
 
                 Label { text: "Keep this report"; font.bold: true; Layout.topMargin: 6 }
                 RowLayout {

@@ -12,13 +12,14 @@ from PySide6.QtCore import Property, QObject, QSize, QUrl, Signal, Slot
 from PySide6.QtGui import QImage
 from PySide6.QtQuick import QQuickImageProvider
 
+from jubako import views
 from jubako.errors import JubakoError
 from jubako.paths import resolve_under_roots
 from jubako.printing import ReportDocument
 from jubako.reports import (
     PAGE_SIZES,
     delete_report,
-    fetch_rows,
+    fetch_lines,
     list_reports,
     load_report,
     normalise_spec,
@@ -79,7 +80,7 @@ class Report(QObject):
 
     @Property(int, notify=changed)
     def rowCount(self) -> int:  # noqa: N802
-        return len(self._document.rows) if self._document else 0
+        return self._document.row_count if self._document else 0
 
     @Property(str, notify=changed)
     def error(self) -> str:
@@ -97,6 +98,17 @@ class Report(QObject):
     def pageSizes(self) -> list[str]:  # noqa: N802
         return list(PAGE_SIZES)
 
+    @Slot(str, result="QVariantList")
+    def viewsFor(self, table: str) -> list[dict[str, Any]]:  # noqa: N802
+        """A table's saved views, for "From a saved view": name and the rule in words."""
+        storage = self._get_storage()
+        if storage is None or not table:
+            return []
+        try:
+            return [{"name": v["name"], "words": v.get("words", "")} for v in views.list_views(storage, table)]
+        except JubakoError:
+            return []
+
     # -- building --------------------------------------------------------------
     @Slot("QVariantMap", result="QVariantMap")
     def build(self, spec: dict) -> dict:
@@ -106,7 +118,7 @@ class Report(QObject):
             return self._fail("Open a database first.")
         try:
             full = normalise_spec(storage, _clean(dict(spec)))
-            document = ReportDocument(full, fetch_rows(storage, full))
+            document = ReportDocument(full, lines=fetch_lines(storage, full))
         except JubakoError as error:
             return self._fail(str(error))
         self._spec = full
@@ -115,7 +127,7 @@ class Report(QObject):
         self._error = ""
         self._version += 1
         self.changed.emit()
-        return {"ok": True, "pages": document.page_count, "rows": len(document.rows)}
+        return {"ok": True, "pages": document.page_count, "rows": document.row_count}
 
     def _fail(self, text: str) -> dict:
         self._error = text
@@ -216,9 +228,12 @@ def _clean(spec: dict[str, Any]) -> dict[str, Any]:
         elif key == "columns":
             out[key] = [str(v) for v in value]
         elif key == "filter":
-            if isinstance(value, dict) and value.get("field"):
-                out[key] = {"field": str(value.get("field")), "op": str(value.get("op") or "is"),
-                            "value": value.get("value")}
+            if isinstance(value, dict) and (value.get("field") or value.get("rules")):
+                out[key] = dict(value)
+        elif key == "sort":
+            out[key] = [dict(item) for item in value if item and item.get("field")]
+        elif key == "totals":
+            out[key] = {str(name): str(how) for name, how in dict(value).items() if how}
         else:
             out[key] = value
     return out

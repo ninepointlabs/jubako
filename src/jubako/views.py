@@ -103,9 +103,13 @@ def default_view(storage: Storage, table: str) -> dict[str, Any] | None:
 
 
 def delete_view(storage: Storage, table: str, name: str) -> bool:
-    if get_view(storage, table, name) is None:
+    view = get_view(storage, table, name)
+    if view is None:
         return False
     _forget(storage, _key(table, (name or "").strip()))
+    from .reports import follow_view  # noqa: PLC0415 - reports reads views too
+
+    follow_view(storage, table, view["name"], None, view)
     return True
 
 
@@ -121,6 +125,9 @@ def rename_view(storage: Storage, table: str, old: str, new: str) -> dict[str, A
     _forget(storage, _key(table, old))
     view["name"] = new
     _write(storage, view)
+    from .reports import follow_view  # noqa: PLC0415 - reports reads views too
+
+    follow_view(storage, table, old, new)
     return view
 
 
