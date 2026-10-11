@@ -2,8 +2,22 @@
   "key": "inventory",
   "order": 2,
   "title": "Inventory",
-  "blurb": "What you stock, how many you have, where it is and what it cost.",
+  "blurb": "What you stock, how many you have, where it is and what it cost. Each item points at its supplier.",
+  "opens": "items",
   "tables": [
+    {
+      "name": "suppliers",
+      "fields": [
+        {"name": "supplier", "label": "Supplier", "unique": true},
+        {"name": "email", "label": "Email"},
+        {"name": "phone", "label": "Phone"}
+      ],
+      "rows": [
+        ["Northwind Cycle Supply", "orders@northwind.example.com", "555-0141"],
+        ["Clearwater Oils", "sales@clearwater.example.com", "555-0177"],
+        ["Harbour Trading", "hello@harbour.example.com", "555-0123"]
+      ]
+    },
     {
       "name": "items",
       "fields": [
@@ -13,7 +27,7 @@
         {"name": "quantity", "type": "integer", "label": "In stock"},
         {"name": "reorder_at", "type": "integer", "label": "Reorder at"},
         {"name": "unit_cost", "type": "real", "label": "Unit cost"},
-        {"name": "supplier", "label": "Supplier"},
+        {"name": "supplier", "type": "lookup", "target": "suppliers", "show": "supplier", "label": "Supplier"},
         {"name": "location", "label": "Shelf"},
         {"name": "last_counted", "type": "date", "label": "Last counted"}
       ],
@@ -36,13 +50,17 @@
     {"table": "items", "name": "Running low", "filter": {"field": "quantity", "op": "at_most", "value": 5},
      "sort": [{"field": "quantity"}]},
     {"table": "items", "name": "Out of stock", "filter": {"field": "quantity", "op": "at_most", "value": 0}},
-    {"table": "items", "name": "By category", "sort": [{"field": "category"}, {"field": "item"}], "default": true}
+    {"table": "items", "name": "By category", "sort": [{"field": "category"}, {"field": "item"}], "default": true},
+    {"table": "suppliers", "name": "A to Z", "sort": [{"field": "supplier"}], "default": true}
   ],
   "reports": [
     {"name": "Stock by category", "table": "items", "title": "Stock by category",
      "columns": ["item", "sku", "quantity", "unit_cost", "location"], "group_by": "category",
      "sort": [{"field": "item"}], "totals": {"quantity": "sum", "unit_cost": "average"}},
     {"name": "Shopping list", "table": "items", "title": "To reorder", "view": "Running low",
-     "columns": ["item", "sku", "quantity", "reorder_at", "supplier"]}
+     "columns": ["item", "sku", "quantity", "reorder_at", "supplier"]},
+    {"name": "Stock by supplier", "table": "items", "title": "Stock by supplier",
+     "columns": ["item", "sku", "quantity", "reorder_at", "unit_cost"], "group_by": "supplier",
+     "sort": [{"field": "item"}], "totals": {"quantity": "sum"}}
   ]
 }

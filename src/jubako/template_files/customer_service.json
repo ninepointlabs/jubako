@@ -3,6 +3,7 @@
   "order": 4,
   "title": "Customer service",
   "blurb": "Requests and complaints: who asked, what about, and whether it is sorted. Each ticket points at its customer.",
+  "opens": "tickets",
   "tables": [
     {
       "name": "customers",

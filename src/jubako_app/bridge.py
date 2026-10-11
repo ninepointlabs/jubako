@@ -847,7 +847,7 @@ class Bridge(QObject):
             result = templates.apply_template(self._storage, template, sample_rows=sample_rows)
         except JubakoError as error:
             return {"ok": False, "error": str(error)}
-        self._refresh_tables(select=result["tables"][0])
+        self._refresh_tables(select=result["opens"])
         rows = f" with {result['rows_added']} example rows" if result["rows_added"] else ""
         self.message.emit(f"Made from the {result['title']} template{rows}. Try Views\u2026 and Print report.")
         return {"ok": True, "tables": result["tables"]}

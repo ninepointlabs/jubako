@@ -2,6 +2,18 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-11.**
 
+## 2026-10-11 — The Inventory template uses a lookup; templates open on their main table
+
+The Inventory template gains a `suppliers` table (Supplier, no repeats,
+Email, Phone). An item's Supplier is a lookup into it, and a new "Stock by
+supplier" report groups items by supplier, totalling the stock.
+
+Templates now say which table to open first (`"opens"`; the first table when
+left out), and `apply_template` returns it. A lookup's table has to be made
+first, so in 0.4.2 a new Customer service database opened on `customers`
+rather than `tickets`; it now opens on `tickets`, and Inventory on `items`.
+Checked on a database file, PostgreSQL 17 and MariaDB 11.
+
 ## Release 0.4.2 — 2026-10-11
 
 The Customer service template's lookup and the MCP argument check, as Arch,

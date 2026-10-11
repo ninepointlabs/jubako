@@ -120,3 +120,26 @@ def test_the_customer_service_template_ties_each_ticket_to_its_customer(database
     lines = fetch_lines(database, report)
     headings = [line["text"] for line in lines if line["kind"] == "group"]
     assert headings[:2] == ["Customer: J. Mensah", "Customer: Maria Alvarez"] and len(headings) == 5
+
+
+def test_the_inventory_template_ties_each_item_to_its_supplier(database):
+    made = templates.apply_template(database, "inventory")
+    assert made["tables"] == ["suppliers", "items"] and made["opens"] == "items"
+    supplier = next(f for f in database.describe_table("items").fields if f.name == "supplier")
+    assert (supplier.type, supplier.target, supplier.show) == ("lookup", "suppliers", "supplier")
+    harbour = next(row for row in database.list_rows("suppliers")["rows"] if row[1] == "Harbour Trading")
+    database.update_row("suppliers", harbour[0], {"supplier": "Harbour Trading Co"})
+    at = database.list_rows("items")["columns"].index("supplier")
+    assert [row[at] for row in database.list_rows("items")["rows"]].count("Harbour Trading Co") == 2
+    with pytest.raises(JubakoError):
+        database.delete_row("suppliers", harbour[0])
+    # The shopping list still names each item's supplier.
+    shopping = normalise_spec(database, load_report(database, "Shopping list"))
+    assert [row[-1] for row in fetch_rows(database, shopping)] == ["Northwind Cycle Supply", "Harbour Trading Co"]
+    report = normalise_spec(database, load_report(database, "Stock by supplier"))
+    headings = [line["text"] for line in fetch_lines(database, report) if line["kind"] == "group"]
+    assert headings == ["Supplier: Clearwater Oils", "Supplier: Harbour Trading Co", "Supplier: Northwind Cycle Supply"]
+
+
+def test_a_template_opens_on_its_first_table_unless_it_says(database):
+    assert templates.apply_template(database, "contacts")["opens"] == "contacts"

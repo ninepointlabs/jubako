@@ -349,7 +349,8 @@ def test_templates_through_the_tools(sandbox):
 
     assert "contacts" in [t["key"] for t in HANDLERS["list_templates"]({})["templates"]]
     made = HANDLERS["create_database"]({"title": "Stock", "path": str(sandbox / "stock.jubadb"), "template": "inventory"})
-    assert made["template"]["tables"] == ["items"] and made["template"]["rows_added"] == 7
+    assert made["template"]["tables"] == ["suppliers", "items"] and made["template"]["rows_added"] == 10
+    assert made["template"]["opens"] == "items"
     with pytest.raises(Exception, match="no template"):
         HANDLERS["create_database"]({"title": "X", "path": str(sandbox / "x.jubadb"), "template": "nope"})
     assert not (sandbox / "x.jubadb").exists()

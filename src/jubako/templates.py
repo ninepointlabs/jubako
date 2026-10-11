@@ -2,7 +2,9 @@
 
 A template is a small JSON file next to this module: its tables and fields,
 a few made-up example rows, and the saved views, reports and forms that make
-it useful from the first minute. Applying one to an empty database makes all
+it useful from the first minute. Tables are made in order, so a table that
+lookups point at comes first; "opens" names the table to show first (the
+first table when it is left out). Applying one to an empty database makes all
 of that; the example rows are optional.
 """
 
@@ -95,6 +97,7 @@ def apply_template(storage: Storage, key: str, *, sample_rows: bool = True) -> d
         "template": template["key"],
         "title": template["title"],
         "tables": made,
+        "opens": template.get("opens") or made[0],
         "rows_added": rows_added,
         "views": [view["name"] for view in template.get("views", [])],
         "reports": [report["name"] for report in template.get("reports", [])],
