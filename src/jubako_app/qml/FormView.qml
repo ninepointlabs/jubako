@@ -15,7 +15,17 @@ Item {
     property bool dirty: false
     property bool copied: false        // a new row started from another one
     property string error: ""
+    // How many rows the grid has. rowCount() is a plain call that never tells a binding it changed,
+    // so the buttons read this instead; it follows the model's resets.
+    property int rowTotal: Bridge.rows.rowCount()
     signal deleteRequested(int rowId)
+
+    Connections {
+        target: Bridge.rows
+        function onModelReset() { form.rowTotal = Bridge.rows.rowCount() }
+        function onRowsInserted() { form.rowTotal = Bridge.rows.rowCount() }
+        function onRowsRemoved() { form.rowTotal = Bridge.rows.rowCount() }
+    }
 
     function load(index) {
         error = ""
@@ -100,15 +110,15 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             spacing: 8
-            ActionButton { text: "‹ Previous"; enabled: Bridge.rows.rowCount() > 0 && form.rowIndex !== 0; onClicked: form.go(-1) }
-            ActionButton { text: "Next ›"; enabled: Bridge.rows.rowCount() > 0 && form.rowIndex < Bridge.rows.rowCount() - 1; onClicked: form.go(1) }
+            ActionButton { text: "‹ Previous"; objectName: "formPrevious"; enabled: form.rowTotal > 0 && form.rowIndex !== 0; onClicked: form.go(-1) }
+            ActionButton { text: "Next ›"; objectName: "formNext"; enabled: form.rowTotal > 0 && form.rowIndex < form.rowTotal - 1; onClicked: form.go(1) }
             Label {
                 Layout.leftMargin: 8
                 objectName: "formWhere"
                 text: (Bridge.formTitle !== "" ? Bridge.formTitle + "  \u00b7  " : "")
                     + (form.rowIndex < 0
                        ? (form.copied ? "New row (a copy)" : "New row")
-                       : "Row " + (form.rowIndex + 1) + " of " + Bridge.rows.rowCount())
+                       : "Row " + (form.rowIndex + 1) + " of " + form.rowTotal)
                 font.pointSize: 13
                 font.bold: true
             }

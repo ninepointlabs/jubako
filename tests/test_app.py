@@ -1069,3 +1069,44 @@ def test_the_filter_bar_gets_whole_numbers_back_without_point_zero(pets):
                                        {"field": "weight_kg", "op": "less_than", "value": "12.5"}])["ok"] is True
     assert [rule["value"] for rule in pets.filterRules] == ["5", "12.5"]
     assert pets.filterWords == "weight_kg is more than 5 and weight_kg is less than 12.5"
+
+
+def test_previous_and_next_follow_the_row_on_screen(app, bridge, sandbox, pets_csv):
+    """The window is made before the table has rows, so the buttons must not stay as they started."""
+    from PySide6.QtCore import QEvent
+    from PySide6.QtQml import QQmlEngine, QQmlExpression
+
+    engine, window, _ = _load_window(app, bridge)
+    assert bridge.importIntoNew(str(pets_csv), str(sandbox / "walk.jubadb"))["ok"] is True
+    try:
+        app.processEvents()
+        form_view = window.findChild(QObject, "formView")
+
+        def ask(code):
+            expression = QQmlExpression(QQmlEngine.contextForObject(form_view), form_view, code)
+            value = expression.evaluate()[0]
+            assert not expression.hasError(), expression.error().toString()
+            return value
+
+        def buttons():
+            app.processEvents()
+            return (_find_item(window, "formPrevious").property("enabled"),
+                    _find_item(window, "formNext").property("enabled"))
+
+        last = bridge.rows.rowCount() - 1
+        assert last >= 2
+        ask("formView.load(0)")
+        assert buttons() == (False, True)
+        ask("formView.go(1)")
+        assert buttons() == (True, True)
+        ask(f"formView.load({last})")
+        assert buttons() == (True, False)
+        assert _find_item(window, "formWhere").property("text").endswith(f"Row {last + 1} of {last + 1}")
+
+        # One row left after a filter: nowhere to go.
+        assert bridge.setFilter("name", "is", "Rex")["ok"] is True
+        ask("formView.load(0)")
+        assert buttons() == (False, False)
+    finally:
+        engine.deleteLater()
+        app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
