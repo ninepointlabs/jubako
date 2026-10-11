@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Jubako 重箱 · Microsoft Access, without the hard parts</title>
-<meta name="description" content="A simple desktop database for Omarchy and Linux. Make a database or start from a template, put a spreadsheet in it, find, sort and change your rows, print a tidy report. No SQL, no server.">
+<meta name="description" content="A simple desktop database for Omarchy and Linux. Make a database or start from a template, put a spreadsheet in it, connect your tables, find, sort and change your rows, print a tidy report. No SQL, no server.">
 <link rel="canonical" href="https://jubako.ninepointlabs.com/">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://jubako.ninepointlabs.com/">
@@ -51,7 +51,7 @@
       <p class="def"><i>noun</i> Lacquered boxes that stack into one. <b>One file, several tables.</b></p>
       <p class="tag">Microsoft Access, <em>without the hard parts.</em></p>
       <div class="cta">
-        <a class="btn gold" href="#install">Download 0.3.0</a>
+        <a class="btn gold" href="#install">Download 0.4.0</a>
         <a class="btn" href="https://github.com/ninepointlabs/jubako">View on GitHub</a>
       </div>
     </div>
@@ -110,34 +110,44 @@
       </div>
     </article>
     <article class="shot">
+      <figure><img src="screenshots/lookup.webp" alt="Pointing the Item of every order at a row of products, matched by Product" loading="lazy"></figure>
+      <div>
+        <h3><span class="seal">六</span><span>Connect <em>your tables</em></span></h3>
+        <p>A lookup field points at a row of another table: an order's Item is a row of products. Rename a product
+          and every order shows the new name. Turn a column of names into a lookup in one step; Jubako lists any
+          name that matches nothing and can add it for you. A product that orders still point at cannot be deleted
+          by accident.</p>
+      </div>
+    </article>
+    <article class="shot flip">
       <figure><img src="screenshots/bulk.webp" alt="What the 9 unpaid orders add up to: totals, averages, earliest and latest" loading="lazy"></figure>
       <div>
-        <h3><span class="seal">六</span><span>All of them <em>at once</em></span></h3>
+        <h3><span class="seal">七</span><span>All of them <em>at once</em></span></h3>
         <p>Do something with the rows you found: change a field in every one (“set Paid to Yes”), delete them, or
           see what they add up to, with totals, averages, earliest and latest. Jubako says how many rows first.</p>
       </div>
     </article>
-    <article class="shot flip">
+    <article class="shot">
       <figure><img src="screenshots/form.webp" alt="One order in a form arranged with its own title and fields" loading="lazy"></figure>
       <div>
-        <h3><span class="seal">七</span><span>One record <em>at a time</em></span></h3>
+        <h3><span class="seal">八</span><span>One record <em>at a time</em></span></h3>
         <p>A form for every table. Previous, Next, Save, New row, Duplicate. Arrange it: the order of the fields,
           what each is called, which to leave out. Hidden fields keep their values.</p>
       </div>
     </article>
-    <article class="shot">
+    <article class="shot flip">
       <figure><img src="screenshots/report.webp" alt="The report designer: bike sales grouped by rep, with a total per rep" loading="lazy"></figure>
       <div>
-        <h3><span class="seal">八</span><span>Reports that <em>fit the page</em></span></h3>
+        <h3><span class="seal">九</span><span>Reports that <em>fit the page</em></span></h3>
         <p>Pick the columns, a title, the page size. Sort it, group it with a heading per group, total the number
           columns, add your own header and footer, or print straight from a saved view. Columns shrink and wrap so
           the whole table fits, and what you see is what prints. Export to CSV, Excel or PDF.</p>
       </div>
     </article>
-    <article class="shot flip">
+    <article class="shot">
       <figure><img src="screenshots/light.webp" alt="The grid in a light Omarchy theme" loading="lazy"></figure>
       <div>
-        <h3><span class="seal">九</span><span>Wears <em>your theme</em></span></h3>
+        <h3><span class="seal">十</span><span>Wears <em>your theme</em></span></h3>
         <p>Jubako reads your Omarchy theme and follows it, dark or light, with your accent colour. Change theme and
           the open window changes with it.</p>
       </div>
@@ -145,15 +155,16 @@
   </section>
 
   <section id="agents" class="agents">
-    <h3><span class="seal">十</span><span>Let your <em>agents</em> in</span></h3>
-    <p>An MCP server (36 tools) and a command line do the same jobs as the window: templates, rules and sorts,
-      changing many rows at once, grouped reports. “Turn this spreadsheet into a database” just works from
+    <h3><span class="seal wide">十一</span><span>Let your <em>agents</em> in</span></h3>
+    <p>An MCP server (37 tools) and a command line do the same jobs as the window: templates, rules and sorts,
+      lookups between tables, changing many rows at once, grouped reports. “Turn this spreadsheet into a database” just works from
       Claude Code or any MCP client.</p>
     <div class="term" role="img" aria-label="A terminal session using the jubako command line">
       <div class="term-bar"><i></i><i></i><i></i><span>jubako</span></div>
 <pre><span class="p">$</span> jubako new "Harbor Cycles" harbor-cycles
 <span class="p">$</span> jubako import harbor-cycles.jubadb book.xlsx --all-sheets
 <span class="p">$</span> jubako rows harbor-cycles.jubadb orders --filter total more_than 3000 --sort total:desc
+<span class="p">$</span> jubako lookup harbor-cycles.jubadb orders item --to products --show product
 <span class="p">$</span> jubako set harbor-cycles.jubadb orders paid yes --filter status is Delivered
 <span class="p">$</span> jubako report harbor-cycles.jubadb orders sales.pdf --view "Bike sales" --group-by rep --total total:sum
 <span class="p">$</span> jubako new "Bike stock" stock --template inventory
@@ -168,18 +179,18 @@
     <div class="pkgs">
       <div class="pkg">
         <h4>Arch · Omarchy</h4>
-        <pre>sudo pacman -U jubako-0.3.0-1-any.pkg.tar.zst</pre>
-        <a href="https://github.com/ninepointlabs/jubako/releases/download/v0.3.0/jubako-0.3.0-1-any.pkg.tar.zst">Download .pkg.tar.zst</a>
+        <pre>sudo pacman -U jubako-0.4.0-1-any.pkg.tar.zst</pre>
+        <a href="https://github.com/ninepointlabs/jubako/releases/download/v0.4.0/jubako-0.4.0-1-any.pkg.tar.zst">Download .pkg.tar.zst</a>
       </div>
       <div class="pkg">
         <h4>Debian 13+ · Ubuntu 26.04+</h4>
-        <pre>sudo apt install ./jubako_0.3.0-1_all.deb</pre>
-        <a href="https://github.com/ninepointlabs/jubako/releases/download/v0.3.0/jubako_0.3.0-1_all.deb">Download .deb</a>
+        <pre>sudo apt install ./jubako_0.4.0-1_all.deb</pre>
+        <a href="https://github.com/ninepointlabs/jubako/releases/download/v0.4.0/jubako_0.4.0-1_all.deb">Download .deb</a>
       </div>
       <div class="pkg">
         <h4>Fedora 44+</h4>
-        <pre>sudo dnf install ./jubako-0.3.0-1.noarch.rpm</pre>
-        <a href="https://github.com/ninepointlabs/jubako/releases/download/v0.3.0/jubako-0.3.0-1.noarch.rpm">Download .rpm</a>
+        <pre>sudo dnf install ./jubako-0.4.0-1.noarch.rpm</pre>
+        <a href="https://github.com/ninepointlabs/jubako/releases/download/v0.4.0/jubako-0.4.0-1.noarch.rpm">Download .rpm</a>
       </div>
     </div>
     <p class="fine">Checksums and release notes are on the <a href="https://github.com/ninepointlabs/jubako/releases/latest">latest

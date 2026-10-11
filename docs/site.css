@@ -44,6 +44,7 @@ code, pre { font-family: var(--mono); }
   background: var(--shu); color: #fff2dc; font-family: var(--jp); font-weight: 900; font-size: .9em;
   box-shadow: inset 0 0 0 3px rgba(255,235,200,.35); }
 .seal.small { width: 34px; height: 34px; font-size: 20px; border-radius: 5px; }
+.seal.wide { width: 2.5em; }
 
 main { max-width: 1180px; margin: 0 auto; padding: 0 clamp(18px, 4vw, 48px); }
 section { padding: clamp(56px, 9vw, 110px) 0; }
