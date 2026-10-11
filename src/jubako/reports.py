@@ -25,7 +25,7 @@ from .errors import BadName, JubakoError
 from .fields import INTEGER, REAL
 from .filters import filter_words, normalise_filter, normalise_sort, sort_words
 from .paths import resolve_under_roots
-from .storage.base import Storage
+from .storage.base import Storage, to_json
 
 #: Page sizes in points (1/72 inch), portrait.
 PAGE_SIZES = {
@@ -401,7 +401,7 @@ def save_form(storage: Storage, table: str, form: dict[str, Any]) -> dict[str, A
         "labels": {name: str(labels.get(name) or known[name].title).strip() or known[name].title for name in order},
         "hidden": hidden,
     }
-    storage.set_info(FORM_KEY + table, json.dumps(saved))
+    storage.set_info(FORM_KEY + table, to_json(saved))
     return saved
 
 
@@ -462,7 +462,7 @@ def save_report(storage: Storage, spec: dict[str, Any]) -> dict[str, Any]:
     if not name.strip():
         raise JubakoError("Give the report a name.")
     full["name"] = name.strip()
-    storage.set_info(REPORT_KEY + full["name"], json.dumps(full))
+    storage.set_info(REPORT_KEY + full["name"], to_json(full))
     return full
 
 
@@ -511,7 +511,7 @@ def follow_view(storage: Storage, table: str, old: str, new: str | None, view: d
             spec["view"] = ""
             spec["filter"] = (view or {}).get("filter")
             spec["sort"] = (view or {}).get("sort") or []
-        storage.set_info(REPORT_KEY + spec["name"], json.dumps(spec))
+        storage.set_info(REPORT_KEY + spec["name"], to_json(spec))
         touched.append(spec["name"])
     return touched
 

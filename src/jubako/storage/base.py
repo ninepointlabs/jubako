@@ -99,6 +99,19 @@ def to_jsonable(value: Any) -> Any:
     return value
 
 
+def to_json(value: Any) -> str:
+    """JSON text for something Jubako keeps in its info table. A filter on a date holds a real
+    date, so dates (and anything else `to_jsonable` knows) are written as text."""
+
+    def fallback(item: Any) -> Any:
+        safe = to_jsonable(item)
+        if safe is item:
+            raise TypeError(f"Object of type {type(item).__name__} is not JSON serializable")
+        return safe
+
+    return json.dumps(value, default=fallback)
+
+
 class Storage(ABC):
     """A live connection to one database."""
 

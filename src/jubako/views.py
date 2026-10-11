@@ -20,7 +20,7 @@ from .filters import (
     rename_in_filter,
     sort_words,
 )
-from .storage.base import Storage
+from .storage.base import Storage, to_json
 
 VIEW_KEY = "view:"
 
@@ -189,7 +189,7 @@ def forget_views(storage: Storage, table: str) -> list[str]:
 
 
 def _write(storage: Storage, view: dict[str, Any]) -> None:
-    storage.set_info(_key(view["table"], view["name"]), json.dumps(view))
+    storage.set_info(_key(view["table"], view["name"]), to_json(view))
 
 
 def _forget(storage: Storage, key: str) -> None:

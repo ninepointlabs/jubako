@@ -5,7 +5,6 @@ the database in step, so nothing points at a field that is gone.
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -17,7 +16,7 @@ from .fields import FIELD_TYPES, Field, field_dict, slugify_name
 from .filters import filter_fields, rename_in_filter
 from .storage import SQLITE
 from .views import forget_views, retarget_views
-from .storage.base import Storage, TableInfo
+from .storage.base import Storage, TableInfo, to_json
 
 
 def add_field(
@@ -180,7 +179,7 @@ def _retarget(storage: Storage, table: str, old: str, new: str | None) -> None:
                 labels[name] = label
         form["fields"], form["labels"] = fields, labels
         form["hidden"] = [(new if n == old else n) for n in form.get("hidden", []) if new or n != old]
-        storage.set_info(FORM_KEY + table, json.dumps(form))
+        storage.set_info(FORM_KEY + table, to_json(form))
     for item in list_reports(storage):
         if item["table"] != table:
             continue
@@ -212,7 +211,7 @@ def _retarget(storage: Storage, table: str, old: str, new: str | None) -> None:
         except JubakoError:
             # The saved view it used went with the field.
             fresh = normalise_spec(storage, {**spec, "view": ""})
-        storage.set_info(REPORT_KEY + item["name"], json.dumps(fresh))
+        storage.set_info(REPORT_KEY + item["name"], to_json(fresh))
 
 
 def _report_uses(spec: dict[str, Any], name: str) -> bool:

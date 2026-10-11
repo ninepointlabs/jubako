@@ -136,3 +136,24 @@ def test_views_keep_a_sort_and_several_rules(database, pets_csv):
     assert views.get_view(database, "pets", "Heaviest") is None
     schema.drop_field(database, "pets", "years")
     assert views.get_view(database, "pets", "Old or unknown") is None
+
+
+def test_a_view_can_compare_dates_and_keeps_them_after_reopening(pets_csv, sandbox):
+    from jubako.storage import create_database
+
+    database = create_database(title="Dates", backend="sqlite", path=str(sandbox / "dates.jubadb"))
+    import_spreadsheet(database, str(pets_csv))
+    rules = {"match": "all", "rules": [{"field": "adopted_on", "op": "after", "value": "2024-01-01"}]}
+    view = views.save_view(database, "pets", "Recent", rules, sort=[{"field": "adopted_on"}])
+    assert view["words"] == "adopted_on is after 2024-01-01 · sorted by adopted_on, oldest first"
+    on_the_day = views.save_view(database, "pets", "New Year", {"field": "adopted_on", "op": "is", "value": "2024-01-01"})
+    assert on_the_day["filter"]["field"] == "adopted_on"
+    expected = [row[1] for row in database.list_rows("pets", where=view["filter"], sort=view["sort"])["rows"]]
+    assert expected
+    path = database.location()
+    database.close()
+    with open_database(backend="sqlite", path=path) as again:
+        kept = views.get_view(again, "pets", "Recent")
+        assert kept["filter"]["value"] == "2024-01-01"
+        page = again.list_rows("pets", where=kept["filter"], sort=kept["sort"])
+        assert [row[1] for row in page["rows"]] == expected

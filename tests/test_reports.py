@@ -327,3 +327,23 @@ def test_a_form_can_hide_fields_and_they_keep_their_values(database, pets_csv):
     assert reset_form(database, "pets") is True
     assert form_for(database, "pets")["saved"] is False
     assert reset_form(database, "pets") is False
+
+
+def test_a_report_can_keep_a_date_rule(database):
+    from jubako import views
+
+    database.create_table("visits", [Field("who"), Field("on", "date")])
+    for who, on in [("Ann", "2024-01-05"), ("Bo", "2024-03-01"), ("Cy", "2024-06-30")]:
+        database.add_row("visits", {"who": who, "on": on})
+    saved = save_report(database, {"name": "Spring", "table": "visits", "columns": ["who", "on"],
+                                   "filter": {"field": "on", "op": "at_least", "value": "2024-03-01"}})
+    kept = load_report(database, "Spring")
+    assert kept["filter"]["value"] == "2024-03-01"
+    assert [row[0] for row in fetch_rows(database, normalise_spec(database, kept))] == ["Bo", "Cy"]
+    assert saved["filter_words"] == "On is on or after 2024-03-01"
+
+    # A report on a view with a date rule keeps that rule when the view goes.
+    views.save_view(database, "visits", "Early", {"field": "on", "op": "before", "value": "2024-02-01"})
+    save_report(database, {"name": "Early ones", "table": "visits", "columns": ["who"], "view": "Early"})
+    views.delete_view(database, "visits", "Early")
+    assert load_report(database, "Early ones")["filter"]["value"] == "2024-02-01"
