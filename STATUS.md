@@ -2,6 +2,11 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-11.**
 
+## Release 0.4.3 — 2026-10-11
+
+The Inventory template's lookup, and templates opening on their main table
+(a fix for 0.4.2's Customer service), as Arch, .deb and .rpm packages.
+
 ## 2026-10-11 — The Inventory template uses a lookup; templates open on their main table
 
 The Inventory template gains a `suppliers` table (Supplier, no repeats,

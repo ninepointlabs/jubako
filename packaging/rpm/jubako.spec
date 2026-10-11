@@ -1,5 +1,5 @@
 Name:           jubako
-Version:        0.4.2
+Version:        0.4.3
 Release:        1%{?dist}
 Summary:        A simple desktop database, in the spirit of Microsoft Access
 License:        MIT
@@ -40,6 +40,9 @@ rm -rf %{buildroot}%{_docdir}/%{name} %{buildroot}%{_datadir}/licenses/%{name}
 %{_datadir}/icons/hicolor/scalable/apps/jubako.svg
 
 %changelog
+* Sun Oct 11 2026 Nine Point Labs <179739321+ninepointlabs@users.noreply.github.com> - 0.4.3-1
+- The Inventory template ties each item to its supplier; a new Customer
+  service database opens on its tickets again.
 * Sun Oct 11 2026 Nine Point Labs <179739321+ninepointlabs@users.noreply.github.com> - 0.4.2-1
 - The Customer service template ties each ticket to its customer; the MCP
   server refuses arguments a tool does not take.
