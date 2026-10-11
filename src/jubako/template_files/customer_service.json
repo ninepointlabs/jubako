@@ -2,14 +2,27 @@
   "key": "customer_service",
   "order": 4,
   "title": "Customer service",
-  "blurb": "Requests and complaints: who asked, what about, and whether it is sorted.",
+  "blurb": "Requests and complaints: who asked, what about, and whether it is sorted. Each ticket points at its customer.",
   "tables": [
+    {
+      "name": "customers",
+      "fields": [
+        {"name": "customer", "label": "Customer", "unique": true},
+        {"name": "email", "label": "Email"}
+      ],
+      "rows": [
+        ["M. Alvarez", "malvarez@example.com"],
+        ["T. Nguyen", "tnguyen@example.com"],
+        ["R. Haddad", "rhaddad@example.com"],
+        ["S. Kowalski", "skowalski@example.com"],
+        ["J. Mensah", "jmensah@example.com"]
+      ]
+    },
     {
       "name": "tickets",
       "fields": [
         {"name": "opened_on", "type": "date", "label": "Opened"},
-        {"name": "customer", "label": "Customer"},
-        {"name": "email", "label": "Email"},
+        {"name": "customer", "type": "lookup", "target": "customers", "show": "customer", "label": "Customer"},
         {"name": "subject", "label": "Subject"},
         {"name": "category", "label": "Category"},
         {"name": "priority", "label": "Priority"},
@@ -19,17 +32,18 @@
         {"name": "notes", "label": "Notes"}
       ],
       "rows": [
-        ["2026-10-01", "M. Alvarez", "malvarez@example.com", "Order arrived damaged", "Delivery", "High", "Open", "Kim", "", "Photos requested"],
-        ["2026-10-02", "T. Nguyen", "tnguyen@example.com", "How do I change my address?", "Account", "Low", "Closed", "Lee", "2026-10-02", ""],
-        ["2026-10-03", "R. Haddad", "rhaddad@example.com", "Refund not received", "Billing", "High", "Waiting", "Kim", "", "Waiting on the bank"],
-        ["2026-10-05", "S. Kowalski", "skowalski@example.com", "Wrong size sent", "Delivery", "Medium", "Open", "Lee", "", ""],
-        ["2026-10-06", "J. Mensah", "jmensah@example.com", "Discount code not working", "Billing", "Medium", "Closed", "Kim", "2026-10-07", "Code had expired; sent a new one"]
+        ["2026-10-01", "M. Alvarez", "Order arrived damaged", "Delivery", "High", "Open", "Kim", "", "Photos requested"],
+        ["2026-10-02", "T. Nguyen", "How do I change my address?", "Account", "Low", "Closed", "Lee", "2026-10-02", ""],
+        ["2026-10-03", "R. Haddad", "Refund not received", "Billing", "High", "Waiting", "Kim", "", "Waiting on the bank"],
+        ["2026-10-05", "S. Kowalski", "Wrong size sent", "Delivery", "Medium", "Open", "Lee", "", ""],
+        ["2026-10-06", "J. Mensah", "Discount code not working", "Billing", "Medium", "Closed", "Kim", "2026-10-07", "Code had expired; sent a new one"],
+        ["2026-10-08", "M. Alvarez", "Replacement still not here", "Delivery", "High", "Open", "Kim", "", "Follows the damaged order"]
       ]
     }
   ],
   "forms": [
     {"table": "tickets", "title": "Ticket",
-     "fields": ["opened_on", "customer", "email", "subject", "category", "priority", "status", "assigned_to", "closed_on", "notes"]}
+     "fields": ["opened_on", "customer", "subject", "category", "priority", "status", "assigned_to", "closed_on", "notes"]}
   ],
   "views": [
     {"table": "tickets", "name": "Not closed", "filter": {"field": "status", "op": "is_not", "value": "Closed"},
@@ -37,12 +51,15 @@
     {"table": "tickets", "name": "Urgent", "filter": {"match": "all", "rules": [
       {"field": "priority", "op": "is", "value": "High"}, {"field": "status", "op": "is_not", "value": "Closed"}]},
      "sort": [{"field": "opened_on"}]},
-    {"table": "tickets", "name": "Newest first", "sort": [{"field": "opened_on", "descending": true}]}
+    {"table": "tickets", "name": "Newest first", "sort": [{"field": "opened_on", "descending": true}]},
+    {"table": "customers", "name": "A to Z", "sort": [{"field": "customer"}], "default": true}
   ],
   "reports": [
     {"name": "Open tickets by person", "table": "tickets", "title": "Open tickets", "view": "Not closed",
      "columns": ["opened_on", "customer", "subject", "priority", "status"], "group_by": "assigned_to"},
     {"name": "Tickets by category", "table": "tickets", "title": "Tickets by category",
-     "columns": ["opened_on", "customer", "subject", "status"], "group_by": "category", "sort": [{"field": "opened_on"}]}
+     "columns": ["opened_on", "customer", "subject", "status"], "group_by": "category", "sort": [{"field": "opened_on"}]},
+    {"name": "Tickets by customer", "table": "tickets", "title": "Tickets by customer",
+     "columns": ["opened_on", "subject", "status", "closed_on"], "group_by": "customer", "sort": [{"field": "opened_on"}]}
   ]
 }

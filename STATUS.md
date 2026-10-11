@@ -2,6 +2,14 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-11.**
 
+## 2026-10-11 — The Customer service template uses a lookup
+
+The Customer service template gains a `customers` table (Customer, no
+repeats, and Email, moved off tickets). A ticket's Customer is a lookup into
+it. There is a sixth example ticket, a second for one customer, and a
+"Tickets by customer" report. Checked on a database file, PostgreSQL 17 and
+MariaDB 11.
+
 ## Release 0.4.1 — 2026-10-11
 
 The Projects template's lookup, as Arch, .deb and .rpm packages.

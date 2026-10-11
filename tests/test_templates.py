@@ -103,3 +103,20 @@ def test_the_projects_template_ties_each_task_to_its_project(database):
     report = normalise_spec(database, load_report(database, "Tasks by project"))
     headings = [line["text"] for line in fetch_lines(database, report) if line["kind"] == "group"]
     assert headings == ["Project: Spring catalogue", "Project: Website"]
+
+
+def test_the_customer_service_template_ties_each_ticket_to_its_customer(database):
+    templates.apply_template(database, "customer_service")
+    customer = next(f for f in database.describe_table("tickets").fields if f.name == "customer")
+    assert (customer.type, customer.target, customer.show) == ("lookup", "customers", "customer")
+    assert database.count_rows("customers") == 5
+    alvarez = next(row for row in database.list_rows("customers")["rows"] if row[1] == "M. Alvarez")
+    database.update_row("customers", alvarez[0], {"customer": "Maria Alvarez"})
+    at = database.list_rows("tickets")["columns"].index("customer")
+    assert [row[at] for row in database.list_rows("tickets")["rows"]].count("Maria Alvarez") == 2
+    with pytest.raises(JubakoError):
+        database.delete_row("customers", alvarez[0])
+    report = normalise_spec(database, load_report(database, "Tickets by customer"))
+    lines = fetch_lines(database, report)
+    headings = [line["text"] for line in lines if line["kind"] == "group"]
+    assert headings[:2] == ["Customer: J. Mensah", "Customer: Maria Alvarez"] and len(headings) == 5
