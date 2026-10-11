@@ -2,6 +2,10 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-11.**
 
+## Release 0.4.1 — 2026-10-11
+
+The Projects template's lookup, as Arch, .deb and .rpm packages.
+
 ## 2026-10-11 — The Projects template uses a lookup
 
 In the Projects and tasks template, a task's Project is now a lookup into

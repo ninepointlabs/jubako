@@ -1,5 +1,5 @@
 Name:           jubako
-Version:        0.4.0
+Version:        0.4.1
 Release:        1%{?dist}
 Summary:        A simple desktop database, in the spirit of Microsoft Access
 License:        MIT
@@ -40,6 +40,8 @@ rm -rf %{buildroot}%{_docdir}/%{name} %{buildroot}%{_datadir}/licenses/%{name}
 %{_datadir}/icons/hicolor/scalable/apps/jubako.svg
 
 %changelog
+* Sun Oct 11 2026 Nine Point Labs <179739321+ninepointlabs@users.noreply.github.com> - 0.4.1-1
+- The Projects and tasks template ties each task to its project.
 * Sat Oct 10 2026 Nine Point Labs <179739321+ninepointlabs@users.noreply.github.com> - 0.4.0-1
 - Lookup fields: a row of one table points at a row of another.
 * Sat Oct 10 2026 Nine Point Labs <179739321+ninepointlabs@users.noreply.github.com> - 0.3.0-1
