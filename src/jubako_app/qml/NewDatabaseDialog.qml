@@ -2,7 +2,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// "New database": pick where it lives. A file is the default and needs nothing.
+// "New database": what to start with (nothing, or a template), and where it lives.
+// A file is the default and needs nothing.
 // The same dialog connects to a remembered server ("open" mode), because a
 // password is never saved and has to be typed again.
 Dialog {
@@ -12,12 +13,23 @@ Dialog {
     property string backend: "sqlite"
     property string chosenTitle: ""
     property var backendList: []
+    property var templateList: []
+    property string templateKey: ""      // "" for an empty database
+    property alias sampleRows: sampleBox.checked
     property string error: ""
     signal sqliteChosen(string chosenTitle)
 
-    function openFor(theMode, theBackend, theTitle, connection) {
+    function templateInfo() {
+        for (const t of templateList) if (t.key === templateKey) return t
+        return null
+    }
+
+    function openFor(theMode, theBackend, theTitle, connection, theTemplate) {
         mode = theMode
         backendList = Bridge.backends()
+        templateList = Bridge.templates()
+        templateKey = theTemplate || ""
+        sampleBox.checked = true
         backend = theBackend || "sqlite"
         error = ""
         nameField.text = theTitle || ""
@@ -32,7 +44,8 @@ Dialog {
     function go() {
         error = ""
         if (backend === "sqlite") {
-            chosenTitle = nameField.text
+            const t = templateInfo()
+            chosenTitle = nameField.text || (t ? t.title : "")
             close()
             sqliteChosen(chosenTitle)
             return
@@ -43,6 +56,8 @@ Dialog {
         }
         const r = mode === "open"
             ? Bridge.openDatabase(backend, "", connection)
+            : templateKey !== ""
+            ? Bridge.newFromTemplate(backend, "", nameField.text, connection, templateKey, sampleBox.checked)
             : Bridge.newDatabase(backend, "", nameField.text, connection)
         if (r.ok)
             close()
@@ -63,6 +78,41 @@ Dialog {
 
         Label {
             visible: dialog.mode === "new"
+            text: "What should it start with?"
+            font.pointSize: 12
+            font.bold: true
+        }
+        ComboBox {
+            id: templateBox
+            objectName: "templateBox"
+            visible: dialog.mode === "new"
+            Layout.fillWidth: true
+            model: ["Nothing: an empty database"].concat(dialog.templateList.map(t => "Template: " + t.title))
+            currentIndex: Math.max(0, dialog.templateList.findIndex(t => t.key === dialog.templateKey) + 1)
+            onActivated: function(i) { dialog.templateKey = i === 0 ? "" : dialog.templateList[i - 1].key }
+        }
+        Label {
+            visible: dialog.mode === "new" && dialog.templateKey !== ""
+            Layout.fillWidth: true
+            text: {
+                const t = dialog.templateInfo()
+                return t ? t.blurb + " Comes with saved views and reports. Tables: " + t.tables.join(", ") + "." : ""
+            }
+            color: Theme.lightForeground
+            font.pointSize: 10
+            wrapMode: Text.WordWrap
+        }
+        CheckBox {
+            id: sampleBox
+            objectName: "sampleBox"
+            visible: dialog.mode === "new" && dialog.templateKey !== ""
+            text: "Put in a few made-up example rows (delete them when you are ready)"
+            checked: true
+        }
+
+        Label {
+            visible: dialog.mode === "new"
+            Layout.topMargin: 6
             text: "Where should it live?"
             font.pointSize: 12
             font.bold: true
@@ -104,7 +154,8 @@ Dialog {
                 id: nameField
                 Layout.fillWidth: true
                 visible: dialog.mode === "new"
-                placeholderText: dialog.backend === "sqlite" ? "Optional. The file name is used if blank." : "What to call this database"
+                placeholderText: dialog.templateKey !== "" ? "Optional. \u201c" + (dialog.templateInfo() || {}).title + "\u201d if blank."
+                               : dialog.backend === "sqlite" ? "Optional. The file name is used if blank." : "What to call this database"
             }
 
             Label { text: "Server address"; visible: dialog.backend !== "sqlite" }

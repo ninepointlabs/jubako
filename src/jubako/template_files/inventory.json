@@ -1,0 +1,48 @@
+{
+  "key": "inventory",
+  "order": 2,
+  "title": "Inventory",
+  "blurb": "What you stock, how many you have, where it is and what it cost.",
+  "tables": [
+    {
+      "name": "items",
+      "fields": [
+        {"name": "item", "label": "Item"},
+        {"name": "sku", "label": "SKU", "unique": true},
+        {"name": "category", "label": "Category"},
+        {"name": "quantity", "type": "integer", "label": "In stock"},
+        {"name": "reorder_at", "type": "integer", "label": "Reorder at"},
+        {"name": "unit_cost", "type": "real", "label": "Unit cost"},
+        {"name": "supplier", "label": "Supplier"},
+        {"name": "location", "label": "Shelf"},
+        {"name": "last_counted", "type": "date", "label": "Last counted"}
+      ],
+      "rows": [
+        ["Inner tube 700c", "TB-700", "Parts", 42, 20, 4.10, "Northwind Cycle Supply", "A1", "2026-09-01"],
+        ["Brake pads (pair)", "BP-STD", "Parts", 6, 10, 7.50, "Northwind Cycle Supply", "A2", "2026-09-01"],
+        ["Chain lube 100ml", "LB-100", "Care", 18, 8, 3.25, "Clearwater Oils", "B1", "2026-08-15"],
+        ["Bell, brass", "BL-BR", "Accessories", 3, 5, 6.80, "Harbour Trading", "C3", "2026-08-15"],
+        ["Front light", "LT-F200", "Accessories", 11, 6, 18.00, "Harbour Trading", "C1", "2026-09-01"],
+        ["Mini pump", "PM-MINI", "Tools", 0, 4, 12.40, "Northwind Cycle Supply", "D2", "2026-09-01"],
+        ["Tyre levers (3)", "TL-3", "Tools", 25, 10, 1.90, "Clearwater Oils", "D1", "2026-08-15"]
+      ]
+    }
+  ],
+  "forms": [
+    {"table": "items", "title": "Stock item",
+     "fields": ["item", "sku", "category", "quantity", "reorder_at", "unit_cost", "supplier", "location", "last_counted"]}
+  ],
+  "views": [
+    {"table": "items", "name": "Running low", "filter": {"field": "quantity", "op": "at_most", "value": 5},
+     "sort": [{"field": "quantity"}]},
+    {"table": "items", "name": "Out of stock", "filter": {"field": "quantity", "op": "at_most", "value": 0}},
+    {"table": "items", "name": "By category", "sort": [{"field": "category"}, {"field": "item"}], "default": true}
+  ],
+  "reports": [
+    {"name": "Stock by category", "table": "items", "title": "Stock by category",
+     "columns": ["item", "sku", "quantity", "unit_cost", "location"], "group_by": "category",
+     "sort": [{"field": "item"}], "totals": {"quantity": "sum", "unit_cost": "average"}},
+    {"name": "Shopping list", "table": "items", "title": "To reorder", "view": "Running low",
+     "columns": ["item", "sku", "quantity", "reorder_at", "supplier"]}
+  ]
+}

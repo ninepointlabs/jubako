@@ -941,15 +941,24 @@ def test_the_report_dialog_takes_the_sort_rules_and_a_saved_view(app, bridge, sa
         app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
 
+def test_new_database_from_a_template_from_the_bridge(bridge, sandbox):
+    assert bridge.templates()[0]["key"] == "contacts"
+    made = bridge.newFromTemplate("sqlite", str(sandbox / "contacts.jubadb"), "", {}, "contacts", True)
+    assert made["ok"] is True
+    assert bridge.title == "Contacts"                # the template's title when none is given
+    assert bridge.currentTable == "contacts"
+    assert bridge.currentView == "A to Z"           # the template's default view opens with the table
+    assert bridge.totalRows == 6
+    assert bridge.newFromTemplate("sqlite", str(sandbox / "x.jubadb"), "", {}, "nope", True)["ok"] is False
+    assert not (sandbox / "x.jubadb").exists()
+    empty = bridge.newFromTemplate("sqlite", str(sandbox / "stock.jubadb"), "Shop stock", {}, "inventory", False)
+    assert empty["ok"] is True and bridge.title == "Shop stock" and bridge.totalRows == 0
+
+
 def test_no_repeats_and_row_numbers_from_the_bridge(bridge, sandbox):
     import sqlite3
 
-    from jubako.fields import Field
-
-    assert bridge.newDatabase("sqlite", str(sandbox / "stock.jubadb"), "Stock", {})["ok"] is True
-    bridge.storage().create_table("items", [Field("item", label="Item"), Field("sku", label="SKU", unique=True)])
-    bridge.storage().add_row("items", {"item": "Paint tube", "sku": "TB-700"})
-    bridge.selectTable("items")
+    assert bridge.newFromTemplate("sqlite", str(sandbox / "stock.jubadb"), "", {}, "inventory", True)["ok"] is True
     assert next(f for f in bridge.fields if f["name"] == "sku")["unique"] is True
     saved = bridge.saveRow(0, {"item": "Another tube", "sku": "TB-700"})
     assert saved["ok"] is False and "SKU cannot repeat" in saved["error"]

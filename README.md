@@ -20,6 +20,9 @@ for exactly what works today.
 ## What you can do
 
 - **Make a database.** It is one file on your computer. Copy it, back it up, email it.
+  Or start from a template (Contacts, Inventory, Projects and tasks,
+  Customer service, Home collection) that comes with its tables, saved views
+  and reports, and a few example rows if you want them.
 - **Import a spreadsheet.** Drop a CSV or Excel file on the window. Jubako
   works out each column (words, whole numbers, numbers with decimals, dates,
   or yes/no), shows you its guesses, and lets you change them before anything

@@ -21,6 +21,7 @@ from .exporter import export_table
 from .importer import import_spreadsheet, import_workbook, plan_import
 from .reports import export_report
 from . import schema
+from . import templates as _templates
 from . import views as _views
 from .storage import BACKENDS, create_database, open_database
 
@@ -44,11 +45,19 @@ def cmd_backends(args: argparse.Namespace) -> int:
 
 
 def cmd_new(args: argparse.Namespace) -> int:
+    if args.template:
+        _templates.load_template(args.template)  # an unknown key stops here, before a file is made
     with create_database(
         title=args.title, backend="sqlite", path=args.path, overwrite=args.overwrite
     ) as storage:
+        if args.template:
+            made = _templates.apply_template(storage, args.template, sample_rows=not args.empty)
         _remember(storage)
         print(f"Made the database {storage.title!r} at {storage.location()}")
+        if args.template:
+            print(f"From the {made['title']} template: tables {', '.join(made['tables'])}; "
+                  f"{made['rows_added']} example rows; views {', '.join(made['views'])}; "
+                  f"reports {', '.join(made['reports'])}.")
     return 0
 
 
@@ -63,6 +72,12 @@ def cmd_add_row_number(args: argparse.Namespace) -> int:
     with open_database(backend="sqlite", path=args.path) as storage:
         result = schema.add_row_number(storage, args.table)
     print(f"{args.table} has a row number now ({result['rows']} rows), so its rows can be changed.")
+    return 0
+
+
+def cmd_templates(args: argparse.Namespace) -> int:
+    for item in _templates.list_templates():
+        print(f"{item['key']:18} {item['title']}  —  {item['blurb']}")
     return 0
 
 
@@ -242,7 +257,12 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_argument("title")
     sub.add_argument("path")
     sub.add_argument("--overwrite", action="store_true")
+    sub.add_argument("--template", metavar="KEY", help="Start from a template (see `jubako templates`)")
+    sub.add_argument("--empty", action="store_true", help="With --template: no example rows")
     sub.set_defaults(func=cmd_new)
+
+    sub = subs.add_parser("templates", help="The ready-made databases you can start from")
+    sub.set_defaults(func=cmd_templates)
 
     sub = subs.add_parser("unique", help="Make a field no-repeats (like an email or a code)")
     sub.add_argument("path")

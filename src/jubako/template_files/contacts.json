@@ -1,0 +1,46 @@
+{
+  "key": "contacts",
+  "order": 1,
+  "title": "Contacts",
+  "blurb": "People you know: phone, email, address and birthday.",
+  "tables": [
+    {
+      "name": "contacts",
+      "fields": [
+        {"name": "first_name", "label": "First name"},
+        {"name": "last_name", "label": "Last name"},
+        {"name": "phone", "label": "Phone"},
+        {"name": "email", "label": "Email"},
+        {"name": "street", "label": "Street"},
+        {"name": "town", "label": "Town"},
+        {"name": "birthday", "type": "date", "label": "Birthday"},
+        {"name": "favourite", "type": "boolean", "label": "Favourite"},
+        {"name": "notes", "label": "Notes"}
+      ],
+      "rows": [
+        ["Ada", "Moreno", "555-0101", "ada.moreno@example.com", "12 Elm Road", "Bend", "1986-04-12", "yes", "Book club"],
+        ["Ben", "Okafor", "555-0102", "ben@example.com", "4 Harbour Lane", "Astoria", "1979-11-03", "no", ""],
+        ["Chloe", "Lindqvist", "555-0103", "", "88 Hill Street", "Bend", "1992-07-21", "yes", "Neighbour; has a spare key"],
+        ["Dev", "Rao", "555-0104", "dev.rao@example.com", "", "Salem", "1990-01-30", "no", "Met at the climbing gym"],
+        ["Elena", "Petrova", "555-0105", "elena@example.com", "3 Mill Close", "Astoria", "1965-09-09", "yes", ""],
+        ["Femi", "Adeyemi", "", "femi@example.com", "", "Portland", "", "no", "Plumber"]
+      ]
+    }
+  ],
+  "forms": [
+    {"table": "contacts", "title": "Contact",
+     "fields": ["first_name", "last_name", "phone", "email", "street", "town", "birthday", "favourite", "notes"]}
+  ],
+  "views": [
+    {"table": "contacts", "name": "A to Z", "sort": [{"field": "last_name"}, {"field": "first_name"}], "default": true},
+    {"table": "contacts", "name": "Favourites", "filter": {"field": "favourite", "op": "is", "value": "yes"},
+     "sort": [{"field": "last_name"}]},
+    {"table": "contacts", "name": "No email yet", "filter": {"field": "email", "op": "empty"}}
+  ],
+  "reports": [
+    {"name": "Phone list", "table": "contacts", "title": "Phone list",
+     "columns": ["last_name", "first_name", "phone", "email"], "sort": [{"field": "last_name"}, {"field": "first_name"}]},
+    {"name": "Address book", "table": "contacts", "title": "Address book",
+     "columns": ["first_name", "last_name", "street", "phone"], "group_by": "town", "sort": [{"field": "last_name"}]}
+  ]
+}

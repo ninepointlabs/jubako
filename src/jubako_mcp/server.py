@@ -29,7 +29,7 @@ from jubako import __version__, catalog
 from jubako.errors import JubakoError
 from jubako.exporter import export_table
 from jubako.fields import FIELD_TYPES, field_dict
-from jubako import schema, views
+from jubako import schema, templates, views
 from jubako.importer import import_spreadsheet, import_workbook, plan_import
 from jubako.reports import (
     delete_report,
@@ -151,6 +151,8 @@ def _remember(storage: Storage) -> None:
 # --------------------------------------------------------------------------
 
 def tool_create_database(arguments: dict[str, Any]) -> dict[str, Any]:
+    if arguments.get("template"):
+        templates.load_template(arguments["template"])  # an unknown key stops here, before anything is made
     with create_database(
         title=arguments.get("title", ""),
         backend=arguments.get("backend", "sqlite"),
@@ -158,9 +160,13 @@ def tool_create_database(arguments: dict[str, Any]) -> dict[str, Any]:
         overwrite=bool(arguments.get("overwrite", False)),
         connection=arguments.get("connection"),
     ) as storage:
+        made = None
+        if arguments.get("template"):
+            made = templates.apply_template(storage, arguments["template"],
+                                            sample_rows=bool(arguments.get("sample_rows", True)))
         _remember(storage)
         info = storage.describe()
-    return {
+    result = {
         "made": True,
         "title": info.title,
         "backend": info.backend,
@@ -168,6 +174,14 @@ def tool_create_database(arguments: dict[str, Any]) -> dict[str, Any]:
         "replaced_existing": bool(arguments.get("overwrite", False)),
         "note": "A brand new database. It has no tables yet.",
     }
+    if made:
+        result["template"] = made
+        result["note"] = f"Made from the {made['title']} template: tables {', '.join(made['tables'])}."
+    return result
+
+
+def tool_list_templates(arguments: dict[str, Any]) -> dict[str, Any]:
+    return {"templates": templates.list_templates()}
 
 
 def tool_list_databases(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -466,15 +480,17 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "create_database",
         "description": (
-            "Make a new, empty database. Default backend is sqlite, which is one file on disk; "
-            "give `path`. For postgres or mysql give `connection` instead — the server and its "
-            "database must already exist."
+            "Make a new database: empty, or from a template (see list_templates). Default backend is "
+            "sqlite, which is one file on disk; give `path`. For postgres or mysql give `connection` "
+            "instead — the server and its database must already exist."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "title": {"type": "string", "description": "What to call it, in plain words."},
                 **_TARGET_PROPERTIES,
+                "template": {"type": "string", "description": "A template key, like 'contacts' or 'inventory'."},
+                "sample_rows": {"type": "boolean", "default": True, "description": "With a template: put in its example rows."},
                 "overwrite": {
                     "type": "boolean",
                     "default": False,
@@ -484,6 +500,12 @@ TOOLS: list[dict[str, Any]] = [
             "additionalProperties": False,
         },
         "handler": tool_create_database,
+    },
+    {
+        "name": "list_templates",
+        "description": "Ready-made databases (contacts, inventory, projects, ...) to start from with create_database.",
+        "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+        "handler": tool_list_templates,
     },
     {
         "name": "list_databases",

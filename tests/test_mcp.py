@@ -323,6 +323,17 @@ def test_grouped_report_through_the_tools(sandbox, pets_csv):
     assert result["rows_written"] == 4
 
 
+def test_templates_through_the_tools(sandbox):
+    from jubako_mcp.server import HANDLERS
+
+    assert "contacts" in [t["key"] for t in HANDLERS["list_templates"]({})["templates"]]
+    made = HANDLERS["create_database"]({"title": "Stock", "path": str(sandbox / "stock.jubadb"), "template": "inventory"})
+    assert made["template"]["tables"] == ["items"] and made["template"]["rows_added"] == 7
+    with pytest.raises(Exception, match="no template"):
+        HANDLERS["create_database"]({"title": "X", "path": str(sandbox / "x.jubadb"), "template": "nope"})
+    assert not (sandbox / "x.jubadb").exists()
+
+
 def test_unique_and_row_number_tools(sandbox):
     import sqlite3
 

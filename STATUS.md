@@ -2,7 +2,19 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-10.**
 
-## 2026-10-10 — Access features, part 2: keys
+## 2026-10-10 — Access features, part 2: templates and keys
+
+**4. Templates.** Five ready-made databases in `src/jubako/template_files/`
+(JSON): Contacts, Inventory, Projects and tasks, Customer service, Home
+collection. Each brings its tables, a few made-up example rows (optional),
+saved views (one opens with the table), reports and forms.
+`templates.apply_template` refuses a database that already has one of its
+tables, before changing anything. Window: **Start from a template** on Home,
+and "What should it start with?" in New database (with "Put in a few
+made-up example rows"). CLI: `jubako templates`, `jubako new TITLE PATH
+--template KEY [--empty]`. MCP: `list_templates`, `create_database` takes
+`template` and `sample_rows`. An unknown key is refused before a file is
+made. The wheel carries the JSON files (checked with `uv build`).
 
 **2. Primary keys.**
 - **No repeats.** A field can be unique: a checkbox per field in Fields, and
@@ -12,7 +24,7 @@
   engine is asked; if the engine refuses anyway it still comes back in
   words, and PostgreSQL's aborted transaction is rolled back. Follows field
   renames; dropping the field drops its index first (SQLite needs that).
-  Not for yes/no fields.
+  Not for yes/no fields. The Inventory template's SKU is unique.
   CLI `jubako unique PATH TABLE FIELD [--off]`; MCP `set_unique`,
   `add_field` `unique`. Field dicts only carry `"unique": true` when set, so
   existing shapes are unchanged.
@@ -36,12 +48,12 @@
 containers): sorting with blanks last, date and number comparisons, any/all
 rules, starts with, yes/no filters, no-repeats (refusal in words, rollback,
 rename, drop, refusing while values repeat), adding a row number to a table
-made by hand.
+made by hand, applying the Inventory template and laying out its reports.
 
 Not fixed (out of scope): `scripts/smoke_remote.py` stops at once because
 its table name `jubako_smoke_pets` starts with the reserved `jubako_`.
 
-198 tests pass.
+211 tests pass.
 
 ## 2026-10-10 — Access features, part 1: queries and reports
 

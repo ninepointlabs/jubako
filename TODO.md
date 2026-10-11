@@ -28,11 +28,11 @@ and the window, with tests. Work order: 7a → 6 → 4 → 2 → 3 → 5 → 7b.
 
 ## 4. Templates
 
-- [ ] A template format: tables, fields, a few sample rows, views, reports.
-- [ ] Starter templates: Contacts, Inventory, Projects & tasks,
+- [x] A template format: tables, fields, a few sample rows, views, reports.
+- [x] Starter templates: Contacts, Inventory, Projects & tasks,
       Customer service, Home collection.
-- [ ] `apply_template` in the core; `jubako new --template`; MCP `create_database` + `list_templates`.
-- [ ] "Start from a template" on Home and in the New database dialog.
+- [x] `apply_template` in the core; `jubako new --template`; MCP `create_database` + `list_templates`.
+- [x] "Start from a template" on Home and in the New database dialog.
 
 ## 5. Forms
 

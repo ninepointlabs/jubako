@@ -1,0 +1,61 @@
+{
+  "key": "projects",
+  "order": 3,
+  "title": "Projects and tasks",
+  "blurb": "Projects with a due date, and the tasks that get each one done.",
+  "tables": [
+    {
+      "name": "projects",
+      "fields": [
+        {"name": "project", "label": "Project"},
+        {"name": "owner", "label": "Owner"},
+        {"name": "status", "label": "Status"},
+        {"name": "start_date", "type": "date", "label": "Starts"},
+        {"name": "due_date", "type": "date", "label": "Due"},
+        {"name": "notes", "label": "Notes"}
+      ],
+      "rows": [
+        ["New website", "Sam", "Under way", "2026-09-01", "2026-11-15", "Copy first, then pictures"],
+        ["Spring catalogue", "Priya", "Not started", "2026-11-01", "2027-02-01", ""],
+        ["Move the stockroom", "Jo", "Done", "2026-06-01", "2026-08-30", "Shelving from the old shop"]
+      ]
+    },
+    {
+      "name": "tasks",
+      "fields": [
+        {"name": "task", "label": "Task"},
+        {"name": "project", "label": "Project"},
+        {"name": "assigned_to", "label": "Who"},
+        {"name": "priority", "label": "Priority"},
+        {"name": "due_date", "type": "date", "label": "Due"},
+        {"name": "done", "type": "boolean", "label": "Done"}
+      ],
+      "rows": [
+        ["Write the About page", "New website", "Sam", "High", "2026-10-20", "yes"],
+        ["Choose photos", "New website", "Jo", "Medium", "2026-10-30", "no"],
+        ["Set up the shop pages", "New website", "Sam", "High", "2026-11-05", "no"],
+        ["Ask suppliers for prices", "Spring catalogue", "Priya", "Medium", "2026-11-20", "no"],
+        ["Book the photographer", "Spring catalogue", "Priya", "Low", "2026-12-10", "no"],
+        ["Label the new shelves", "Move the stockroom", "Jo", "Low", "2026-08-25", "yes"]
+      ]
+    }
+  ],
+  "forms": [
+    {"table": "tasks", "title": "Task", "fields": ["task", "project", "assigned_to", "priority", "due_date", "done"]}
+  ],
+  "views": [
+    {"table": "tasks", "name": "Still to do", "filter": {"field": "done", "op": "is_not", "value": "yes"},
+     "sort": [{"field": "due_date"}], "default": true},
+    {"table": "tasks", "name": "High priority", "filter": {"match": "all", "rules": [
+      {"field": "priority", "op": "is", "value": "High"}, {"field": "done", "op": "is_not", "value": "yes"}]}},
+    {"table": "projects", "name": "Not done", "filter": {"field": "status", "op": "is_not", "value": "Done"},
+     "sort": [{"field": "due_date"}]}
+  ],
+  "reports": [
+    {"name": "Tasks by project", "table": "tasks", "title": "Tasks still to do",
+     "columns": ["task", "assigned_to", "priority", "due_date"], "group_by": "project",
+     "filter": {"field": "done", "op": "is_not", "value": "yes"}, "sort": [{"field": "due_date"}]},
+    {"name": "Who does what", "table": "tasks", "title": "Who does what",
+     "columns": ["task", "project", "due_date", "done"], "group_by": "assigned_to", "sort": [{"field": "due_date"}]}
+  ]
+}

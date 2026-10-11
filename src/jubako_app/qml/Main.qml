@@ -71,7 +71,11 @@ ApplicationWindow {
     }
 
     // ---- flows -----------------------------------------------------------
-    function startNew() { newDialog.openFor("new", "sqlite", "", {}) }
+    function startNew() { newDialog.openFor("new", "sqlite", "", {}, "") }
+    function startTemplate() {
+        const list = Bridge.templates()
+        newDialog.openFor("new", "sqlite", "", {}, list.length > 0 ? list[0].key : "")
+    }
     function startOpen() { openDbDialog.open() }
     function startImport() { importDialog.open() }
     function goHome() { Bridge.closeDatabase() }
@@ -133,7 +137,8 @@ ApplicationWindow {
     NewDatabaseDialog {
         id: newDialog
         onSqliteChosen: function(chosenTitle) {
-            saveDbDialog.selectedFile = Bridge.documentsFolder() + "/my-database.jubadb"
+            const stem = newDialog.templateKey !== "" ? newDialog.templateKey.replace(/_/g, "-") : "my-database"
+            saveDbDialog.selectedFile = Bridge.documentsFolder() + "/" + stem + ".jubadb"
             saveDbDialog.open()
         }
     }
@@ -153,6 +158,9 @@ ApplicationWindow {
                 r = Bridge.newDatabase("sqlite", selectedFile, Bridge.suggestedDatabaseName(sheet).replace(/\.jubadb$/, "").replace(/[-_]/g, " "), {})
                 if (r.ok)
                     importWizard.openFor(sheet)
+            } else if (newDialog.templateKey !== "") {
+                r = Bridge.newFromTemplate("sqlite", selectedFile, newDialog.chosenTitle, {},
+                                           newDialog.templateKey, newDialog.sampleRows)
             } else {
                 r = Bridge.newDatabase("sqlite", selectedFile, newDialog.chosenTitle, {})
             }

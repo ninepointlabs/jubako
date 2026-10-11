@@ -1,0 +1,48 @@
+{
+  "key": "collection",
+  "order": 5,
+  "title": "Home collection",
+  "blurb": "Books, records, films and games: what you have, what it is worth, who borrowed it.",
+  "tables": [
+    {
+      "name": "collection",
+      "fields": [
+        {"name": "title", "label": "Title"},
+        {"name": "creator", "label": "By"},
+        {"name": "kind", "label": "Kind"},
+        {"name": "year", "type": "integer", "label": "Year"},
+        {"name": "genre", "label": "Genre"},
+        {"name": "condition", "label": "Condition"},
+        {"name": "value", "type": "real", "label": "Value"},
+        {"name": "lent_to", "label": "Lent to"},
+        {"name": "acquired_on", "type": "date", "label": "Got it"},
+        {"name": "favourite", "type": "boolean", "label": "Favourite"}
+      ],
+      "rows": [
+        ["The Quiet Harbour", "L. Fairweather", "Book", 1998, "Mystery", "Good", 8.00, "", "2019-05-04", "yes"],
+        ["Night Trains", "The Low Lamps", "Record", 1974, "Folk", "Fair", 25.00, "Dev", "2021-02-14", "no"],
+        ["A Field Guide to Clouds", "M. Okonkwo", "Book", 2011, "Nature", "Like new", 15.00, "", "2022-08-30", "yes"],
+        ["Starboard", "", "Game", 2016, "Strategy", "Good", 30.00, "Chloe", "2020-12-25", "no"],
+        ["Paper Moonlight", "R. Castellanos", "Film", 1987, "Drama", "Good", 6.50, "", "2018-03-10", "no"],
+        ["Blue Hour", "The Low Lamps", "Record", 1976, "Folk", "Good", 32.00, "", "2023-06-01", "yes"]
+      ]
+    }
+  ],
+  "forms": [
+    {"table": "collection", "title": "Item",
+     "fields": ["title", "creator", "kind", "year", "genre", "condition", "value", "lent_to", "acquired_on", "favourite"]}
+  ],
+  "views": [
+    {"table": "collection", "name": "Lent out", "filter": {"field": "lent_to", "op": "not_empty"}},
+    {"table": "collection", "name": "Favourites", "filter": {"field": "favourite", "op": "is", "value": "yes"},
+     "sort": [{"field": "title"}]},
+    {"table": "collection", "name": "A to Z", "sort": [{"field": "title"}], "default": true}
+  ],
+  "reports": [
+    {"name": "Collection by kind", "table": "collection", "title": "The collection",
+     "columns": ["title", "creator", "year", "condition", "value"], "group_by": "kind",
+     "sort": [{"field": "title"}], "totals": {"value": "sum"}},
+    {"name": "Who has what", "table": "collection", "title": "Lent out", "view": "Lent out",
+     "columns": ["title", "kind", "lent_to"], "sort": [{"field": "lent_to"}]}
+  ]
+}

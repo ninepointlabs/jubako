@@ -22,7 +22,7 @@ from PySide6.QtCore import (
     Slot,
 )
 
-from jubako import catalog, schema, views
+from jubako import catalog, schema, templates, views
 from jubako.errors import JubakoError
 from jubako.exporter import export_table
 from jubako.fields import FIELD_TYPE_LABELS, FIELD_TYPES, Field, slugify_name
@@ -648,6 +648,31 @@ class Bridge(QObject):
         self._adopt(storage)
         self.message.emit("New database made. Now import a spreadsheet.")
         return {"ok": True}
+
+    @Slot(result="QVariantList")
+    def templates(self) -> list[dict[str, Any]]:
+        """The ready-made databases: key, title, blurb, tables."""
+        return templates.list_templates()
+
+    @Slot(str, str, str, "QVariantMap", str, bool, result="QVariantMap")
+    def newFromTemplate(self, backend: str, path: str, title: str, connection: dict,  # noqa: N802
+                        template: str, sample_rows: bool) -> dict:
+        """A new database with a template's tables, views and reports (and, if asked, its example rows)."""
+        try:
+            chosen = templates.load_template(template)
+        except JubakoError as error:
+            return {"ok": False, "error": str(error)}
+        made = self.newDatabase(backend, path, (title or "").strip() or chosen["title"], connection)
+        if not made["ok"]:
+            return made
+        try:
+            result = templates.apply_template(self._storage, template, sample_rows=sample_rows)
+        except JubakoError as error:
+            return {"ok": False, "error": str(error)}
+        self._refresh_tables(select=result["tables"][0])
+        rows = f" with {result['rows_added']} example rows" if result["rows_added"] else ""
+        self.message.emit(f"Made from the {result['title']} template{rows}. Try Views\u2026 and Print report.")
+        return {"ok": True, "tables": result["tables"]}
 
     @Slot(str, str, "QVariantMap", result="QVariantMap")
     def openDatabase(self, backend: str, path: str, connection: dict) -> dict:  # noqa: N802

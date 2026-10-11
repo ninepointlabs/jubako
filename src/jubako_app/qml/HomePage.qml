@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// Home: three big buttons and the databases you opened lately.
+// Home: four big buttons and the databases you opened lately.
 Page {
     id: page
     property var recentList: []
@@ -36,6 +36,7 @@ Page {
             Layout.topMargin: 8
             spacing: 16
             BigButton { text: "New database"; hint: "Start with nothing in it"; primary: true; onClicked: win.startNew() }
+            BigButton { text: "Start from a template"; hint: "Contacts, stock, projects and more"; onClicked: win.startTemplate() }
             BigButton { text: "Open a database"; hint: "One you already made"; onClicked: win.startOpen() }
             BigButton { text: "Import a spreadsheet"; hint: "A CSV or Excel file becomes a database"; onClicked: win.startImport() }
         }
