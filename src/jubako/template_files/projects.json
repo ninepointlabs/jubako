@@ -7,7 +7,7 @@
     {
       "name": "projects",
       "fields": [
-        {"name": "project", "label": "Project"},
+        {"name": "project", "label": "Project", "unique": true},
         {"name": "owner", "label": "Owner"},
         {"name": "status", "label": "Status"},
         {"name": "start_date", "type": "date", "label": "Starts"},
@@ -24,7 +24,7 @@
       "name": "tasks",
       "fields": [
         {"name": "task", "label": "Task"},
-        {"name": "project", "label": "Project"},
+        {"name": "project", "type": "lookup", "target": "projects", "show": "project", "label": "Project"},
         {"name": "assigned_to", "label": "Who"},
         {"name": "priority", "label": "Priority"},
         {"name": "due_date", "type": "date", "label": "Due"},

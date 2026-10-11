@@ -1,6 +1,14 @@
 # Jubako — status
 
-**Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-10.**
+**Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-11.**
+
+## 2026-10-11 — The Projects template uses a lookup
+
+In the Projects and tasks template, a task's Project is now a lookup into
+`projects`, showing its Project name. Project names are marked no repeats so
+that typing a name always finds one row. Templates read their fields with
+`field_from_dict`, so a template can hold any kind of field. Checked on a
+database file, PostgreSQL 17 and MariaDB 11.
 
 ## Release 0.4.0 — 2026-10-10
 

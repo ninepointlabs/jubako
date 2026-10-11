@@ -13,7 +13,7 @@ from importlib import resources
 from typing import Any
 
 from .errors import JubakoError
-from .fields import Field, coerce
+from .fields import coerce, field_from_dict
 from .reports import save_form, save_report
 from .storage.base import Storage
 from .views import save_view
@@ -72,8 +72,7 @@ def apply_template(storage: Storage, key: str, *, sample_rows: bool = True) -> d
     made = []
     rows_added = 0
     for table in template["tables"]:
-        fields = [Field(name=f["name"], type=f.get("type", "text"), label=f.get("label"), unique=bool(f.get("unique")))
-                  for f in table["fields"]]
+        fields = [field_from_dict(f) for f in table["fields"]]
         storage.create_table(table["name"], fields)
         if sample_rows and table.get("rows"):
             typed = [

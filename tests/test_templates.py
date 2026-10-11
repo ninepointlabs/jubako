@@ -6,7 +6,15 @@ import pytest
 
 from jubako import templates, views
 from jubako.errors import JubakoError
-from jubako.reports import fetch_rows, form_for, list_reports, load_report, normalise_spec
+from jubako.fields import Field
+from jubako.reports import (
+    fetch_lines,
+    fetch_rows,
+    form_for,
+    list_reports,
+    load_report,
+    normalise_spec,
+)
 
 
 def test_every_template_is_listed_in_order():
@@ -58,7 +66,7 @@ def test_template_views_and_reports_do_what_they_say(database):
 
 
 def test_a_template_refuses_a_database_that_has_its_tables(database):
-    database.create_table("contacts", [templates.Field("name")])
+    database.create_table("contacts", [Field("name")])
     with pytest.raises(JubakoError, match="already has a table called 'contacts'"):
         templates.apply_template(database, "contacts")
     assert views.list_views(database) == []
@@ -70,9 +78,28 @@ def test_an_unknown_template_says_which_there_are():
 
 
 def test_a_template_replaces_views_left_over_from_a_table_long_gone(database):
-    database.create_table("items", [templates.Field("x")])
+    database.create_table("items", [Field("x")])
     views.save_view(database, "items", "Running low", {"field": "x", "op": "empty"})
     database.drop_table("items")              # the low-level drop leaves its views behind
     made = templates.apply_template(database, "inventory")
     assert "Running low" in made["views"]
     assert views.get_view(database, "items", "Running low")["filter"]["field"] == "quantity"
+
+
+def test_the_projects_template_ties_each_task_to_its_project(database):
+    templates.apply_template(database, "projects")
+    project = next(f for f in database.describe_table("tasks").fields if f.name == "project")
+    assert (project.type, project.target, project.show) == ("lookup", "projects", "project")
+    page = database.list_rows("tasks", sort=[{"field": "project"}])
+    at = page["columns"].index("project")
+    assert [row[at] for row in page["rows"]][:2] == ["Move the stockroom", "New website"]
+    # Renaming a project shows in its tasks; a project with tasks cannot be deleted.
+    website = next(row for row in database.list_rows("projects")["rows"] if row[1] == "New website")
+    database.update_row("projects", website[0], {"project": "Website"})
+    words = [row[at] for row in database.list_rows("tasks")["rows"]]
+    assert words.count("Website") == 3 and "New website" not in words
+    with pytest.raises(JubakoError):
+        database.delete_row("projects", website[0])
+    report = normalise_spec(database, load_report(database, "Tasks by project"))
+    headings = [line["text"] for line in fetch_lines(database, report) if line["kind"] == "group"]
+    assert headings == ["Project: Spring catalogue", "Project: Website"]
