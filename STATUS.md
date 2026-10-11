@@ -2,6 +2,10 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-11.**
 
+## Release 0.4.5 — 2026-10-11
+
+The Contacts template's lookup, as Arch, .deb and .rpm packages.
+
 ## 2026-10-11 — The Contacts template uses a lookup
 
 The Contacts template gains a `contact_groups` table (Group, no repeats,
