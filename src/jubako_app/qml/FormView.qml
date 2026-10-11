@@ -182,9 +182,27 @@ Item {
                                 text: checked ? "Yes" : "No"
                                 onToggled: form.set(cell.modelData.name, checked)
                             }
+                            // A lookup picks one row of the other table from a list (by the words it shows).
+                            ComboBox {
+                                id: lookupBox
+                                objectName: "lookup_" + cell.modelData.name
+                                Layout.fillWidth: true
+                                visible: cell.modelData.type === "lookup"
+                                model: visible ? [{ id: 0, text: "(none)" }].concat(Bridge.lookupChoices(cell.modelData.name)) : []
+                                textRole: "text"
+                                valueRole: "id"
+                                font.pointSize: 12
+                                currentIndex: {
+                                    const chosen = form.edits[cell.modelData.name]
+                                    const rows = model
+                                    for (let i = 1; i < rows.length; i++) if (rows[i].id === chosen) return i
+                                    return 0
+                                }
+                                onActivated: form.set(cell.modelData.name, currentValue === 0 ? "" : currentValue)
+                            }
                             TextField {
                                 Layout.fillWidth: true
-                                visible: cell.modelData.type !== "boolean"
+                                visible: cell.modelData.type !== "boolean" && cell.modelData.type !== "lookup"
                                 text: visible ? String(form.edits[cell.modelData.name] ?? "") : ""
                                 font.pointSize: 12
                                 placeholderText: {

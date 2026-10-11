@@ -23,9 +23,18 @@ from PySide6.QtCore import (
 )
 
 from jubako import catalog, schema, templates, views
-from jubako.errors import JubakoError
+from jubako.errors import JubakoError, LookupMissing
 from jubako.exporter import export_table
-from jubako.fields import FIELD_TYPE_LABELS, FIELD_TYPES, Field, slugify_name
+from jubako.fields import (
+    ALL_FIELD_TYPES,
+    FIELD_TYPE_LABELS,
+    FIELD_TYPES,
+    LOOKUP,
+    TEXT,
+    Field,
+    field_from_dict,
+    slugify_name,
+)
 from jubako.filters import (
     NEEDS_VALUE,
     OPS,
@@ -58,6 +67,8 @@ class RowsModel(QAbstractTableModel):
         self._names: list[str] = []
         self._rows: list[list[str]] = []
         self._raw: list[list[Any]] = []
+        #: For each lookup field, the row numbers behind the words shown (see `Storage.list_rows`).
+        self._ids: dict[str, list[Any]] = {}
         #: False for a table with no row number: its cells cannot be typed into.
         self.editable = True
         #: Called with (row_id, field_name, new_text) when a cell is edited in the grid.
@@ -69,6 +80,7 @@ class RowsModel(QAbstractTableModel):
         self._kinds = [None] + [field["type"] for field in page["fields"]]
         self._names = ["id"] + [field["name"] for field in page["fields"]]
         self._raw = [list(row) for row in page["rows"]]
+        self._ids = {name: list(ids) for name, ids in dict(page.get("ids") or {}).items()}
         self.editable = bool(page.get("editable", True))
         self._rows = [
             [cell_text(value, self._kinds[i] if i < len(self._kinds) else None)
@@ -119,6 +131,10 @@ class RowsModel(QAbstractTableModel):
             raw = self._raw[row][column]
             if self._kinds[column] == "boolean":
                 values[name] = bool(raw) if raw is not None else False
+            elif self._kinds[column] == LOOKUP:
+                # The form picks a row from a list, so it wants the row number, not the words.
+                row_number = self._ids.get(name, [None] * len(self._raw))[row]
+                values[name] = "" if row_number is None else int(row_number)
             else:
                 values[name] = "" if raw is None else str(raw)
         return {"id": int(self._raw[row][0] or 0), "values": values}
@@ -352,7 +368,77 @@ class Bridge(QObject):
 
     @Slot(result="QVariantList")
     def fieldTypes(self) -> list[dict[str, str]]:  # noqa: N802
+        """The kinds a spreadsheet column can be read as (the import preview)."""
         return [{"key": key, "label": FIELD_TYPE_LABELS[key]} for key in FIELD_TYPES]
+
+    @Slot(result="QVariantList")
+    def allFieldTypes(self) -> list[dict[str, str]]:  # noqa: N802
+        """Every kind of field, a lookup ("A row of another table") too."""
+        return [{"key": key, "label": FIELD_TYPE_LABELS[key]} for key in ALL_FIELD_TYPES]
+
+    # -- lookups ------------------------------------------------------------------
+    @Slot(str, result="QVariantList")
+    def lookupChoices(self, field: str) -> list[dict[str, Any]]:  # noqa: N802
+        """The rows a lookup field of the current table can point at: [{id, text}], A to Z."""
+        info = next((f for f in self._fields if f["name"] == field and f["type"] == LOOKUP), None)
+        if self._storage is None or info is None:
+            return []
+        try:
+            page = self._storage.list_rows(info["target"], limit=5000, sort=[{"field": info["show"]}])
+        except JubakoError:
+            return []
+        position = page["columns"].index(info["show"])
+        return [{"id": int(row[0]), "text": "" if row[position] is None else str(row[position]) or f"#{row[0]}"}
+                for row in page["rows"]]
+
+    @Slot(result="QVariantList")
+    def lookupTargets(self) -> list[dict[str, Any]]:  # noqa: N802
+        """Tables a lookup can point at (they have row numbers), each with the words fields it could show."""
+        if self._storage is None:
+            return []
+        out = []
+        for table in self._storage.list_tables():
+            try:
+                info = self._storage.describe_table(table)
+            except JubakoError:
+                continue
+            words = [{"name": f.name, "label": f.title} for f in info.fields if f.type == TEXT]
+            if info.has_row_id and words:
+                out.append({"name": table, "fields": words})
+        return out
+
+    @Slot(str, str, str, str, result="QVariantMap")
+    def addLookupField(self, label: str, name: str, target: str, show: str) -> dict:  # noqa: N802
+        """Add a field to the current table that points at rows of `target`, showing their `show` field."""
+        if self._storage is None or not self._current_table:
+            return {"ok": False, "error": "Pick a table first."}
+        try:
+            result = schema.add_field(self._storage, self._current_table, label=label, name=name,
+                                      field_type=LOOKUP, target=target, show=show)
+        except JubakoError as error:
+            return {"ok": False, "error": str(error)}
+        self._refresh_tables(select=self._current_table)
+        added = result["fields"][-1]
+        self.message.emit(f"Added {added['label']}: it points at rows of {target}.")
+        return {"ok": True, "name": added["name"]}
+
+    @Slot(str, str, str, bool, result="QVariantMap")
+    def makeLookup(self, field: str, target: str, show: str, add_missing: bool) -> dict:  # noqa: N802
+        """Turn a words field of the current table into a lookup. Values that match no row come back as
+        `missing` (and nothing changes) unless `add_missing`."""
+        if self._storage is None or not self._current_table:
+            return {"ok": False, "error": "Pick a table first."}
+        try:
+            result = schema.make_lookup(self._storage, self._current_table, field, target, show, add_missing=add_missing)
+        except LookupMissing as error:
+            return {"ok": False, "error": str(error), "missing": error.missing}
+        except JubakoError as error:
+            return {"ok": False, "error": str(error)}
+        self._refresh_tables(select=self._current_table)
+        label = next((f["label"] for f in self._fields if f["name"] == field), field)
+        added = f" Added {len(result['added'])} to {target}." if result["added"] else ""
+        self.message.emit(f"{label} now points at rows of {target}.{added}")
+        return {"ok": True, "added": result["added"]}
 
     @Property("QVariantMap", notify=tableChanged)
     def filter(self) -> dict[str, Any]:
@@ -396,7 +482,7 @@ class Bridge(QObject):
         return sort_words(self._field_objects(), self._sort)
 
     def _field_objects(self) -> list[Field]:
-        return [Field(name=f["name"], type=f["type"], label=f["label"]) for f in self._fields]
+        return [field_from_dict(f) for f in self._fields]
 
     @Property(bool, notify=tableChanged)
     def canEdit(self) -> bool:  # noqa: N802

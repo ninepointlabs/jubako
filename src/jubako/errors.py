@@ -31,3 +31,11 @@ class BadName(JubakoError):
 
 class ImportProblem(JubakoError):
     """The spreadsheet could not be turned into a table."""
+
+
+class LookupMissing(JubakoError):
+    """Turning a field into a lookup: some of its values match no row of the other table."""
+
+    def __init__(self, message: str, missing: list[str]) -> None:
+        super().__init__(message)
+        self.missing = missing

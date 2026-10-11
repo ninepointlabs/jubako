@@ -28,7 +28,7 @@ from typing import Any, Callable
 from jubako import __version__, catalog
 from jubako.errors import JubakoError
 from jubako.exporter import export_table
-from jubako.fields import FIELD_TYPES, field_dict
+from jubako.fields import ALL_FIELD_TYPES, field_dict
 from jubako import schema, templates, views
 from jubako.importer import import_spreadsheet, import_workbook, plan_import
 from jubako.reports import (
@@ -328,7 +328,7 @@ def tool_describe_table(arguments: dict[str, Any]) -> dict[str, Any]:
         "table": info.name,
         "rows": info.row_count,
         "fields": [field_dict(f) for f in info.fields],
-        "field_types": list(FIELD_TYPES),
+        "field_types": list(ALL_FIELD_TYPES),
     }
     if not info.has_row_id:
         result["editable"] = False
@@ -355,9 +355,21 @@ def tool_add_field(arguments: dict[str, Any]) -> dict[str, Any]:
             storage, arguments["table"], label=arguments.get("label", ""),
             name=arguments.get("name", ""), field_type=arguments.get("type", "text"),
             unique=bool(arguments.get("unique", False)),
+            target=arguments.get("target", ""), show=arguments.get("show", ""),
         )
     result["added"] = result["fields"][-1]["name"]
     result["note"] = "Rows already there have nothing in the new field."
+    return result
+
+
+def tool_make_lookup(arguments: dict[str, Any]) -> dict[str, Any]:
+    with _open(arguments) as storage:
+        result = schema.make_lookup(
+            storage, arguments["table"], arguments["field"], arguments["target"], arguments["show"],
+            add_missing=bool(arguments.get("add_missing", False)),
+        )
+    result["note"] = (f"{arguments['field']} now keeps the row number of a row of {arguments['target']} and shows its "
+                      f"{arguments['show']}. Writes may give the words or the row number.")
     return result
 
 
@@ -657,7 +669,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "list_rows",
-        "description": "Read rows from a table, a page at a time.",
+        "description": "Read rows from a table, a page at a time. A lookup field shows the words of the row it points at; its row numbers are in `ids`.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -677,7 +689,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "add_row",
-        "description": "Add one row to a table. Values are checked against each field's type.",
+        "description": "Add one row to a table. Values are checked against each field's type. A lookup takes the words its row shows (like a customer's name) or the row number.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -713,7 +725,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "update_row",
-        "description": "Change some fields of one row, found by its id.",
+        "description": "Change some fields of one row, found by its id. A lookup takes the words its row shows or the row number.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -918,13 +930,39 @@ TOOLS: list[dict[str, Any]] = [
                 "table": {"type": "string"},
                 "label": {"type": "string", "description": "What people see, like 'Moved'."},
                 "name": {"type": "string", "description": "Name inside: letters, numbers, underscores. Made from the label if left out."},
-                "type": {"type": "string", "enum": list(FIELD_TYPES), "default": "text"},
+                "type": {"type": "string", "enum": list(ALL_FIELD_TYPES), "default": "text",
+                         "description": "lookup: points at a row of another table; give target and show."},
                 "unique": {"type": "boolean", "default": False, "description": "No two rows may have the same value (blanks may)."},
+                "target": {"type": "string", "description": "For a lookup: the table it points at."},
+                "show": {"type": "string", "description": "For a lookup: the words field of target it shows, like 'name'."},
             },
             "required": ["table", "label"],
             "additionalProperties": False,
         },
         "handler": tool_add_field,
+    },
+    {
+        "name": "make_lookup",
+        "description": (
+            "Turn a words field into a lookup: each value becomes the row of `target` whose `show` field has the "
+            "same words (case does not matter), like orders.customer names -> rows of customers. Refused, naming "
+            "them, when values match no row (add_missing: true adds them to target) or match two rows. Afterwards "
+            "list_rows shows the words and gives the row numbers in `ids`; writes may give either."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                **_TARGET_PROPERTIES,
+                "table": {"type": "string"},
+                "field": {"type": "string"},
+                "target": {"type": "string"},
+                "show": {"type": "string"},
+                "add_missing": {"type": "boolean", "default": False},
+            },
+            "required": ["table", "field", "target", "show"],
+            "additionalProperties": False,
+        },
+        "handler": tool_make_lookup,
     },
     {
         "name": "set_unique",

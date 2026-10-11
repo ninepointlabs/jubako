@@ -13,6 +13,9 @@ combined read the same.
 
 A sort is a short list of {field, descending}. Blanks always go last, on
 every engine, and the row number breaks ties so the order never wobbles.
+
+A lookup field is matched and sorted by the words it shows (the customer's
+Name), not by the row number it keeps.
 """
 
 from __future__ import annotations
@@ -20,7 +23,7 @@ from __future__ import annotations
 from typing import Any
 
 from .errors import BadName, JubakoError
-from .fields import BOOLEAN, DATE, INTEGER, REAL, TEXT, Field, coerce
+from .fields import BOOLEAN, DATE, INTEGER, LOOKUP, REAL, TEXT, Field, coerce
 
 OPS = (
     "is", "is_not", "empty", "not_empty", "contains", "starts_with",
@@ -93,7 +96,7 @@ def op_words(op: str, field_type: str | None = None) -> str:
 def ops_for(field_type: str) -> list[str]:
     """The matches that make sense for a field of this type, in the order people see them."""
     out = ["is", "is_not", "empty", "not_empty"]
-    if field_type == TEXT:
+    if field_type in (TEXT, LOOKUP):
         out += ["contains", "starts_with"]
     if field_type in ORDERED_TYPES:
         out += ["more_than", "less_than", "at_least", "at_most"]
@@ -145,9 +148,14 @@ def _normalise_rule(fields: list[Field], raw: dict[str, Any]) -> dict[str, Any]:
         if value is None or (isinstance(value, str) and value.strip() == ""):
             raise JubakoError(f"Say what {field.title} {op_words(op, field.type)}.")
         if op in TEXT_OPS:
-            if field.type != TEXT:
+            if field.type not in (TEXT, LOOKUP):
                 raise JubakoError(f"“{OP_WORDS[op]}” only works on a words field. Use “is” instead.")
             value = str(value)
+        elif field.type == LOOKUP:
+            if op in ORDER_OPS:
+                raise JubakoError(f"“{OP_WORDS[op]}” only works on a number or a date. {field.title} holds "
+                                  f"{_kind_word(field.type)}.")
+            value = str(value).strip()  # matched against the words the lookup shows
         else:
             if op in ORDER_OPS and field.type not in ORDERED_TYPES:
                 raise JubakoError(
@@ -196,15 +204,22 @@ def rename_in_filter(filter_spec: dict[str, Any] | None, old: str, new: str) -> 
     return rules[0]
 
 
-def where_clause(storage: Any, filter_spec: dict[str, Any] | None, *, first_index: int = 0) -> tuple[str, list[Any]]:
-    """The SQL after WHERE (empty for no filter) and its parameters."""
+def where_clause(
+    storage: Any, filter_spec: dict[str, Any] | None, *, first_index: int = 0, fields: list[Field] | None = None,
+) -> tuple[str, list[Any]]:
+    """The SQL after WHERE (empty for no filter) and its parameters.
+
+    `fields` (the table's) is needed for a rule on a lookup field, which is
+    matched against the words it shows.
+    """
     rules = filter_rules(filter_spec)
     if not rules:
         return "", []
+    known = {f.name: f for f in fields or []}
     parts: list[str] = []
     params: list[Any] = []
     for rule in rules:
-        clause, more = _rule_clause(storage, rule, first_index + len(params))
+        clause, more = _rule_clause(storage, rule, first_index + len(params), known.get(rule["field"]))
         parts.append(clause)
         params.extend(more)
     if len(parts) == 1:
@@ -213,11 +228,13 @@ def where_clause(storage: Any, filter_spec: dict[str, Any] | None, *, first_inde
     return "(" + joiner.join(f"({part})" for part in parts) + ")", params
 
 
-def _rule_clause(storage: Any, rule: dict[str, Any], index: int) -> tuple[str, list[Any]]:
+def _rule_clause(storage: Any, rule: dict[str, Any], index: int, field: Field | None = None) -> tuple[str, list[Any]]:
     column = storage.quote(rule["field"])
     op = rule["op"]
     value = rule["value"]
     mark = storage.placeholder(index)
+    if field is not None and field.type == LOOKUP:
+        return _lookup_rule_clause(storage, column, field, op, value, mark)
     if op == "is":
         return f"{column} = {mark}", [_param(value, storage)]
     if op == "is_not":
@@ -234,6 +251,35 @@ def _rule_clause(storage: Any, rule: dict[str, Any], index: int) -> tuple[str, l
     if op in _SQL_COMPARE:
         return f"{column} {_SQL_COMPARE[op]} {mark}", [_param(value, storage)]
     raise JubakoError(f"Unknown match {op!r}.")
+
+
+def _lookup_rule_clause(storage: Any, column: str, field: Field, op: str, value: Any, mark: str) -> tuple[str, list[Any]]:
+    """A rule on a lookup: which rows of the other table have words that match, then rows pointing at them."""
+    if op == "empty":
+        return f"{column} IS NULL", []
+    if op == "not_empty":
+        return f"{column} IS NOT NULL", []
+    rows = f"SELECT {storage.quote('id')} FROM {storage.quote(field.target)} WHERE "
+    shown = storage.quote(field.show)
+    if op in TEXT_OPS:
+        escaped = str(value).replace("!", "!!").replace("%", "!%").replace("_", "!_")
+        pattern = f"{escaped}%" if op == "starts_with" else f"%{escaped}%"
+        return f"{column} IN ({rows}LOWER({shown}) LIKE LOWER({mark}) ESCAPE '!')", [pattern]
+    matching = f"{rows}LOWER({shown}) = LOWER({mark})"
+    if op == "is":
+        return f"{column} IN ({matching})", [str(value)]
+    if op == "is_not":
+        return f"({column} IS NULL OR {column} NOT IN ({matching}))", [str(value)]
+    raise JubakoError(f"“{OP_WORDS.get(op, op)}” does not work on {field.title}.")
+
+
+def lookup_text_sql(storage: Any, field: Field, table: str) -> str:
+    """SQL for the words a lookup shows, for each row of `table` (a subquery, usable in SELECT and ORDER BY)."""
+    other = storage.quote("jubako_l")
+    return (
+        f"(SELECT {other}.{storage.quote(field.show)} FROM {storage.quote(field.target)} AS {other} "
+        f"WHERE {other}.{storage.quote('id')} = {storage.quote(table)}.{storage.quote(field.name)})"
+    )
 
 
 def filter_words(fields: list[Field], filter_spec: dict[str, Any] | None) -> str:
@@ -290,11 +336,22 @@ def normalise_sort(fields: list[Field], raw: Any) -> list[dict[str, Any]]:
     return out
 
 
-def order_clause(storage: Any, sort: list[dict[str, Any]], *, row_id: bool = True) -> str:
-    """The SQL after ORDER BY: blanks last for every field, then the row number (when there is one)."""
+def order_clause(
+    storage: Any, sort: list[dict[str, Any]], *, row_id: bool = True,
+    fields: list[Field] | None = None, table: str | None = None,
+) -> str:
+    """The SQL after ORDER BY: blanks last for every field, then the row number (when there is one).
+
+    A lookup field sorts by the words it shows; that needs `fields` and `table`.
+    """
+    known = {f.name: f for f in fields or []}
     parts = []
     for item in sort:
-        column = storage.quote(item["field"])
+        field = known.get(item["field"])
+        if field is not None and field.type == LOOKUP and table:
+            column = lookup_text_sql(storage, field, table)
+        else:
+            column = storage.quote(item["field"])
         direction = "DESC" if item["descending"] else "ASC"
         if item["field"] != "id":
             parts.append(f"({column} IS NULL) ASC")
@@ -322,6 +379,7 @@ def direction_words(kind: str | None, descending: bool) -> str:
     """"A to Z", "lowest first", "oldest first", and their opposites."""
     pairs = {
         TEXT: ("A to Z", "Z to A"),
+        LOOKUP: ("A to Z", "Z to A"),
         DATE: ("oldest first", "newest first"),
         BOOLEAN: ("No first", "Yes first"),
     }
@@ -337,4 +395,4 @@ def _param(value: Any, storage: Any) -> Any:
 
 def _kind_word(kind: str) -> str:
     return {"integer": "whole number", "real": "number", DATE: "date like 2024-01-31",
-            BOOLEAN: "yes or no"}.get(kind, "words")
+            BOOLEAN: "yes or no", LOOKUP: "a row of another table"}.get(kind, "words")

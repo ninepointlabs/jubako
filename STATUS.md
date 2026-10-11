@@ -2,6 +2,47 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-10.**
 
+## 2026-10-10 — Relationships: lookup fields (`TODO.md` item 8)
+
+A **lookup** field points at a row of another table: an order's Item points
+at a row of `products` and shows its Product. It keeps that row's `id` (an
+integer column) and shows the chosen words field, so renaming a product
+shows everywhere.
+- **Core.** `Field(type="lookup", target=, show=)`, kept in the field spec.
+  `list_rows` puts the shown words in `rows` and the row numbers in `ids`,
+  so reports, exports, summaries and the CLI show words with no change.
+  Writes take the words (any case), the row number, or "#12"; no match, two
+  matches, or a row that is not there is refused in words. Filters (is, is
+  not, contains, starts with, empty) and sorts use the words, by subquery.
+  A self-lookup (staff → staff) works.
+- **Protection.** Deleting a row that lookups point at is refused, saying how
+  many rows of which table point at it (one row or by filter). Deleting the
+  other table, or the field a lookup shows, is refused while it is used;
+  renaming that field (or the lookup) follows. No database foreign keys.
+- **Turning a words field into a lookup** (`schema.make_lookup`,
+  `Storage.convert_to_lookup`): matches each value to the other table's
+  shown field, ignoring case and spaces at the ends; values matching no row
+  are refused, listed (`LookupMissing`), unless `add_missing` adds them;
+  words two rows share are refused. The column is rebuilt in place and keeps
+  its spot; saved views and reports on it keep working (they match words).
+  On the demo database, `orders.item` → `products.product` matches all 242
+  rows; `orders.customer` → `customers.name` is refused, rightly: the demo
+  has two customers called "Aisha Whitfield" (and five more such names).
+- **CLI** `jubako lookup PATH TABLE FIELD --to TABLE --show FIELD
+  [--label L] [--add-missing]` (an existing words field is converted, a new
+  name is added). **MCP** `add_field` takes `type: lookup`, `target`,
+  `show`; new `make_lookup` (37 tools).
+- **Window.** Add field has "A row of another table" with Points at / Shows.
+  Fields shows "A row of products" and a **Lookup…** button on words fields
+  (the dialog lists values that match nothing and offers to add them). The
+  form picks from a list, A to Z; the grid takes a typed name; the filter
+  bar offers contains / starts with.
+
+Verified on SQLite, PostgreSQL 17 and MariaDB 11 (the lookup tests run
+against each server), and by screenshots of the new dialogs and the form.
+
+243 tests pass.
+
 ## Release 0.3.0 — 2026-10-10
 
 The Access features (`TODO.md` items 1–7) and the fixes after them, as

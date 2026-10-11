@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from ..errors import BackendNotAvailable, DatabaseMissing, JubakoError
-from ..fields import BOOLEAN, DATE, INTEGER, REAL, TEXT, Field
+from ..fields import BOOLEAN, DATE, INTEGER, LOOKUP, REAL, TEXT, Field
 from .base import ROW_ID, Storage, check_name
 
 _COLUMN_TYPES = {
@@ -20,6 +20,7 @@ _COLUMN_TYPES = {
     REAL: "DOUBLE PRECISION",
     DATE: "DATE",
     BOOLEAN: "BOOLEAN",
+    LOOKUP: "BIGINT",  # the other row's id
 }
 
 _FROM_PG = {

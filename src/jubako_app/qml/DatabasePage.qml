@@ -25,6 +25,7 @@ Page {
     FormDesignDialog { id: formDesignDialog }
     MatchingRows { id: matchingRows }
     AddFieldDialog { id: addFieldDialog }
+    MakeLookupDialog { id: makeLookupDialog }
     RenameFieldDialog { id: renameFieldDialog }
 
     Dialog {

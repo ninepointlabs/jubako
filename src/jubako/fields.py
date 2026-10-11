@@ -2,6 +2,10 @@
 
 Jubako keeps five kinds of field. Every backend maps them onto its own
 column types, so a table made on SQLite looks the same on PostgreSQL.
+
+A sixth kind, a lookup, points at a row of another table: it keeps that row's
+number and shows one of its words fields (an order's Customer shows the
+customer's Name). It is made on purpose, never guessed from a spreadsheet.
 """
 
 from __future__ import annotations
@@ -16,8 +20,12 @@ INTEGER = "integer"
 REAL = "real"
 DATE = "date"
 BOOLEAN = "boolean"
+LOOKUP = "lookup"
 
+#: The kinds a spreadsheet column can be read as.
 FIELD_TYPES = (TEXT, INTEGER, REAL, DATE, BOOLEAN)
+#: Every kind of field, a lookup too.
+ALL_FIELD_TYPES = FIELD_TYPES + (LOOKUP,)
 
 #: What people see in the app when they pick a type.
 FIELD_TYPE_LABELS = {
@@ -26,6 +34,7 @@ FIELD_TYPE_LABELS = {
     REAL: "Number with decimals",
     DATE: "Date",
     BOOLEAN: "Yes / No",
+    LOOKUP: "A row of another table",
 }
 
 TRUE_WORDS = {"true", "yes", "y", "t", "1", "on"}
@@ -45,16 +54,24 @@ UNIQUE_TYPES = (TEXT, INTEGER, REAL, DATE)
 
 @dataclass(frozen=True)
 class Field:
-    """One column: the safe name, the label people read, the type, and whether values may repeat."""
+    """One column: the safe name, the label people read, the type, and whether values may repeat.
+
+    A lookup also names the table it points at (`target`) and the words field
+    of that table it shows (`show`).
+    """
 
     name: str
     type: str = TEXT
     label: str | None = None
     unique: bool = False
+    target: str | None = None
+    show: str | None = None
 
     def __post_init__(self) -> None:
-        if self.type not in FIELD_TYPES:
+        if self.type not in ALL_FIELD_TYPES:
             raise ValueError(f"Unknown field type: {self.type!r}")
+        if self.type == LOOKUP and not (self.target and self.show):
+            raise ValueError("A lookup field needs the table it points at and the field it shows.")
 
     @property
     def title(self) -> str:
@@ -62,11 +79,23 @@ class Field:
 
 
 def field_dict(field: Field) -> dict:
-    """A field as plain data: name, type, label, and "unique": True only for a no-repeats field."""
+    """A field as plain data: name, type, label, "unique": True only for a no-repeats field,
+    and for a lookup the table it points at and the field it shows."""
     out = {"name": field.name, "type": field.type, "label": field.title}
     if field.unique:
         out["unique"] = True
+    if field.type == LOOKUP:
+        out["target"] = field.target
+        out["show"] = field.show
     return out
+
+
+def field_from_dict(item: dict) -> Field:
+    """The other way: plain data (as `field_dict` or a template writes it) back to a Field."""
+    return Field(
+        name=item["name"], type=item.get("type", TEXT), label=item.get("label") or None,
+        unique=bool(item.get("unique")), target=item.get("target") or None, show=item.get("show") or None,
+    )
 
 
 def is_safe_name(name: str) -> bool:
@@ -169,4 +198,13 @@ def coerce(value: Any, field_type: str) -> Any:
         if parsed is None:
             raise ValueError(f"Not a date: {value!r}")
         return parsed
+    if field_type == LOOKUP:
+        # A row number stays a number; words stay words, and the storage finds the row they name.
+        if isinstance(text, bool):
+            raise ValueError(f"Not a row: {value!r}")
+        if isinstance(text, int):
+            return text
+        if isinstance(text, float) and text.is_integer():
+            return int(text)
+        return str(text)
     raise ValueError(f"Unknown field type: {field_type!r}")

@@ -68,6 +68,21 @@ def cmd_unique(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_lookup(args: argparse.Namespace) -> int:
+    """Point a field at rows of another table: turn an existing words field into a lookup, or add a new one."""
+    with open_database(backend="sqlite", path=args.path) as storage:
+        existing = {f.name for f in storage.describe_table(args.table).fields}
+        if args.field in existing:
+            result = schema.make_lookup(storage, args.table, args.field, args.to, args.show, add_missing=args.add_missing)
+            added = f" Added {len(result['added'])} to {args.to}: {', '.join(result['added'])}." if result["added"] else ""
+            print(f"{args.field} now points at rows of {args.to}, showing {args.show}.{added}")
+        else:
+            schema.add_field(storage, args.table, name=args.field, label=args.label or "", field_type="lookup",
+                             target=args.to, show=args.show)
+            print(f"Added {args.field} to {args.table}: it points at rows of {args.to}, showing {args.show}.")
+    return 0
+
+
 def cmd_add_row_number(args: argparse.Namespace) -> int:
     with open_database(backend="sqlite", path=args.path) as storage:
         result = schema.add_row_number(storage, args.table)
@@ -356,6 +371,18 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_argument("field")
     sub.add_argument("--off", action="store_true", help="Let it repeat again")
     sub.set_defaults(func=cmd_unique)
+
+    sub = subs.add_parser(
+        "lookup", help="Point a field at rows of another table (an existing words field becomes a lookup)")
+    sub.add_argument("path")
+    sub.add_argument("table")
+    sub.add_argument("field", help="An existing words field to turn into a lookup, or a new field's name")
+    sub.add_argument("--to", required=True, metavar="TABLE", help="The table it points at")
+    sub.add_argument("--show", required=True, metavar="FIELD", help="The words field of that table it shows")
+    sub.add_argument("--label", help="For a new field: what people see")
+    sub.add_argument("--add-missing", action="store_true",
+                     help="Turning a field into a lookup: add values that match no row to the other table")
+    sub.set_defaults(func=cmd_lookup)
 
     sub = subs.add_parser("add-row-number", help="Give a table made elsewhere a row number, so it can be edited")
     sub.add_argument("path")

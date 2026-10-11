@@ -34,6 +34,10 @@ for exactly what works today.
 - **Change your mind.** Add a field, rename a field, delete a field, delete
   a table, or delete the whole database file. The destructive ones ask first.
   Mark a field "no repeats", like an email or a product code.
+- **Connect your tables.** A lookup field points at a row of another table:
+  an order's Item shows the product's name, and renaming the product shows
+  everywhere. Turn a column of names into a lookup in one step; Jubako lists
+  any name that matches nothing and can add it for you.
 - **See only some rows.** "Show rows where Moved is not Yes" hides the rest
   in the grid and the form, and a printed report can use the same rule.
   Combine rules ("and" / "or"), compare numbers and dates ("is after

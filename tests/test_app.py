@@ -1110,3 +1110,102 @@ def test_previous_and_next_follow_the_row_on_screen(app, bridge, sandbox, pets_c
     finally:
         engine.deleteLater()
         app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+def _shop_with_names(bridge, sandbox):
+    """customers (Ann, Bo) and orders whose Customer is still words, one of them a name not in customers."""
+    from jubako.fields import Field
+
+    assert bridge.newDatabase("sqlite", str(sandbox / "shop.jubadb"), "Shop", {})["ok"] is True
+    storage = bridge.storage()
+    storage.create_table("customers", [Field("name", label="Name")])
+    for name in ("Ann", "Bo"):
+        storage.add_row("customers", {"name": name})
+    storage.create_table("orders", [Field("item", label="Item"), Field("customer", label="Customer")])
+    for item, customer in [("Bell", "Ann"), ("Bike", "bo"), ("Tube", "Cy")]:
+        storage.add_row("orders", {"item": item, "customer": customer})
+    bridge.refresh()
+    bridge.selectTable("orders")
+
+
+def test_lookups_from_the_bridge(bridge, sandbox):
+    _shop_with_names(bridge, sandbox)
+    assert "lookup" not in [t["key"] for t in bridge.fieldTypes()]          # never guessed on import
+    assert "lookup" in [t["key"] for t in bridge.allFieldTypes()]
+    targets = {t["name"]: [f["name"] for f in t["fields"]] for t in bridge.lookupTargets()}
+    assert targets == {"customers": ["name"], "orders": ["item", "customer"]}
+
+    refused = bridge.makeLookup("customer", "customers", "name", False)
+    assert refused["ok"] is False and refused["missing"] == ["Cy"]
+    assert bridge.makeLookup("customer", "customers", "name", True) == {"ok": True, "added": ["Cy"]}
+    assert [bridge.rows.data(bridge.rows.index(r, 2)) for r in range(3)] == ["Ann", "Bo", "Cy"]
+    assert bridge.rows.record(1)["values"]["customer"] == 2                  # the form gets the row number
+    assert [c["text"] for c in bridge.lookupChoices("customer")] == ["Ann", "Bo", "Cy"]
+
+    # The form sends a row number; the grid sends typed words.
+    assert bridge.saveRow(bridge.rows.rowId(0), {"customer": 3})["ok"] is True
+    assert bridge.rows.data(bridge.rows.index(0, 2)) == "Cy"
+    assert bridge.saveRow(bridge.rows.rowId(0), {"customer": "ann"})["ok"] is True
+    bad = bridge.saveRow(bridge.rows.rowId(0), {"customer": "Dee"})
+    assert bad["ok"] is False and "No row of customers has Name “Dee”" in bad["error"]
+
+    assert bridge.setFilter("customer", "contains", "o")["ok"] is True and bridge.totalRows == 1
+    bridge.clearFilter()
+    assert bridge.sortBy("customer")["ok"] is True
+    assert [bridge.rows.data(bridge.rows.index(r, 2)) for r in range(3)] == ["Ann", "Bo", "Cy"]
+
+    assert bridge.addLookupField("Helped by", "", "customers", "name")["ok"] is True
+    assert next(f for f in bridge.fields if f["name"] == "helped_by")["target"] == "customers"
+
+    bridge.selectTable("customers")
+    gone = bridge.deleteRow(1)
+    assert gone["ok"] is False and "still point at this row through Customer" in gone["error"]
+
+
+def test_the_window_adds_and_makes_lookups_and_the_form_picks_from_a_list(app, bridge, sandbox):
+    from PySide6.QtCore import QEvent
+    from PySide6.QtQml import QQmlEngine, QQmlExpression
+
+    engine, window, _ = _load_window(app, bridge)
+    _shop_with_names(bridge, sandbox)
+    try:
+        app.processEvents()
+        inside = window.findChild(QObject, "formView")  # its context sees the page's ids
+
+        def ask(code, where=inside):
+            expression = QQmlExpression(QQmlEngine.contextForObject(where), where, code)
+            value = expression.evaluate()[0]
+            assert not expression.hasError(), expression.error().toString()
+            app.processEvents()
+            return value
+
+        # Make Customer a lookup through the dialog: it lists the name that matches nothing, then adds it.
+        ask("makeLookupDialog.openFor(Bridge.fields[1])")
+        assert ask("makeLookupDialog.targets.map(t => t.name).join(',')") == "customers,orders"
+        ask("makeLookupDialog.go(false)")
+        assert ask("makeLookupDialog.missing.join(',')") == "Cy"
+        ask("makeLookupDialog.go(true)")
+        assert ask("makeLookupDialog.visible") is False
+        assert next(f for f in bridge.fields if f["name"] == "customer")["type"] == "lookup"
+        ask("fieldsDialog.close()")
+
+        # Add a new lookup through Add field.
+        ask("addFieldDialog.openFor(false)")
+        add = window.findChild(QObject, "addFieldType")  # its context sees the dialog's ids
+        ask("typeBox.currentIndex = Bridge.allFieldTypes().findIndex(t => t.key === 'lookup')", add)
+        ask("labelField.text = 'Helped by'; nameField.text = 'helped_by'", add)
+        assert ask("dialog.isLookup", add) is True and ask("dialog.targetFields.map(f => f.name).join(',')", add) == "name"
+        ask("dialog.go()", add)
+        assert ask("dialog.visible", add) is False
+        assert next(f for f in bridge.fields if f["name"] == "helped_by")["show"] == "name"
+
+        # The form picks a customer from a list and saves the row number.
+        form = window.findChild(QObject, "formView")
+        ask("page.mode = 'form'; formView.load(0)")
+        box = _find_item(window, "lookup_customer")
+        assert box is not None and box.property("currentText") == "Ann"
+        ask("formView.set('customer', 2); formView.save()", form)
+        assert bridge.rows.data(bridge.rows.index(0, 2)) == "Bo"
+    finally:
+        engine.deleteLater()
+        app.sendPostedEvents(None, QEvent.Type.DeferredDelete)

@@ -12,7 +12,7 @@ from __future__ import annotations
 import pytest
 
 from jubako.errors import BadName, JubakoError
-from jubako.fields import BOOLEAN, DATE, INTEGER, REAL, TEXT, Field
+from jubako.fields import BOOLEAN, DATE, INTEGER, LOOKUP, REAL, TEXT, Field
 from jubako.storage import (
     BACKENDS,
     MYSQL,
@@ -148,4 +148,4 @@ def test_every_backend_covers_every_field_type():
     from jubako.storage.sqlite import _COLUMN_TYPES as SQLITE_TYPES
 
     for table in (SQLITE_TYPES, PG_TYPES, MYSQL_TYPES):
-        assert set(table) == {TEXT, INTEGER, REAL, DATE, BOOLEAN}
+        assert set(table) == {TEXT, INTEGER, REAL, DATE, BOOLEAN, LOOKUP}

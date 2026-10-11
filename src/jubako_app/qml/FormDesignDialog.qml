@@ -46,7 +46,7 @@ Dialog {
     }
 
     function typeWord(kind) {
-        for (const t of Bridge.fieldTypes()) if (t.key === kind) return t.label
+        for (const t of Bridge.allFieldTypes()) if (t.key === kind) return t.label
         return kind
     }
 

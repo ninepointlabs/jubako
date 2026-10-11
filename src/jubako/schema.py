@@ -12,7 +12,7 @@ from typing import Any
 from .errors import JubakoError
 from .paths import DB_SUFFIXES, database_path, resolve_under_roots
 from .reports import FORM_KEY, REPORT_KEY, list_reports, load_form, load_report, normalise_spec
-from .fields import FIELD_TYPES, Field, field_dict, slugify_name
+from .fields import ALL_FIELD_TYPES, LOOKUP, Field, field_dict, slugify_name
 from .filters import filter_fields, rename_in_filter
 from .storage import SQLITE
 from .views import forget_views, retarget_views
@@ -21,18 +21,41 @@ from .storage.base import Storage, TableInfo, to_json
 
 def add_field(
     storage: Storage, table: str, *, label: str = "", name: str = "", field_type: str = "text",
-    unique: bool = False,
+    unique: bool = False, target: str = "", show: str = "",
 ) -> dict[str, Any]:
-    """Add a field. The name inside comes from the label when not given. `unique`: no repeats."""
+    """Add a field. The name inside comes from the label when not given. `unique`: no repeats.
+
+    A lookup (`field_type="lookup"`) points at rows of `target` and shows their `show` field.
+    """
     label = (label or "").strip()
     name = (name or "").strip()
     if not label and not name:
         raise JubakoError("Give the new field a label.")
     name = name or slugify_name(label, fallback="field")
-    if field_type not in FIELD_TYPES:
-        raise JubakoError(f"Unknown field type {field_type!r}. Use: {', '.join(FIELD_TYPES)}.")
-    info = storage.add_field(table, Field(name=name, type=field_type, label=label or None, unique=bool(unique)))
+    if field_type not in ALL_FIELD_TYPES:
+        raise JubakoError(f"Unknown field type {field_type!r}. Use: {', '.join(ALL_FIELD_TYPES)}.")
+    if field_type == LOOKUP:
+        if not (target or "").strip() or not (show or "").strip():
+            raise JubakoError("Say which table the lookup points at, and which of its fields it shows.")
+        field = Field(name=name, type=LOOKUP, label=label or None, target=target.strip(), show=show.strip())
+    else:
+        field = Field(name=name, type=field_type, label=label or None, unique=bool(unique))
+    info = storage.add_field(table, field)
     return _field_result(info, table)
+
+
+def make_lookup(
+    storage: Storage, table: str, name: str, target: str, show: str, *, add_missing: bool = False,
+) -> dict[str, Any]:
+    """Turn a words field into a lookup into `target`, matching its words to `target`'s `show` field.
+
+    Refused, naming the values, when some match no row (unless `add_missing`, which adds them to
+    `target`) or match two rows. Saved views and reports on the field keep working: a lookup is
+    matched by the words it shows.
+    """
+    result = storage.convert_to_lookup(table, name, target, show, add_missing=add_missing)
+    result.update(_field_result(storage.describe_table(table), table))
+    return result
 
 
 def set_unique(storage: Storage, table: str, name: str, unique: bool = True) -> dict[str, Any]:

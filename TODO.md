@@ -2,7 +2,7 @@
 
 Items 1–7 from the Access comparison (2026-10-10), easiest first. Macros and
 VBA modules are left out on purpose: the CLI and the MCP server do that job.
-Relationships (lookup fields) come after this list.
+Relationships (lookup fields) come after this list: see 8.
 
 Each item is done when it works in the core library, the CLI, the MCP server
 and the window, with tests. Work order: 7a → 6 → 4 → 2 → 3 → 5 → 7b.
@@ -64,3 +64,35 @@ and the window, with tests. Work order: 7a → 6 → 4 → 2 → 3 → 5 → 7b.
 - [x] Change a field in every matching row ("set Moved to Yes"), with a confirm.
 - [x] Delete every matching row, with a confirm that says how many.
 - [x] Summary of the matching rows: count, and sum / average of a number field.
+
+## 8. Relationships: lookup fields
+
+A lookup field points at a row of another table, like an order's Customer
+pointing at a row of `customers`. It keeps that row's number and shows one of
+its fields (the customer's Name), so renaming "Ann Lee" in `customers` shows
+everywhere at once.
+
+Decisions (2026-10-10):
+- **Stored as the other row's `id`** (an integer column), shown as the chosen
+  field's text. Rows from `list_rows` carry the text people see, with the ids
+  alongside, so reports, exports and the CLI show names without knowing.
+- **Typing a name finds the row**: a write may give the text (matched without
+  minding case) or the row number. No match, or two rows with that text, is
+  refused in words.
+- **Filters and sorts use the text** ("Customer contains lee", A to Z by name).
+- **Deleting a row that others point at is refused**, saying how many rows
+  point at it. Deleting the other table, or the field it shows, is refused
+  while a lookup uses it. Renaming that field follows.
+- No database-level foreign keys: Jubako checks, the same on all three engines.
+- **The shown field must be a words field**, and a lookup cannot be no-repeats (yet).
+
+- [x] Core: the `lookup` type (`target`, `show`), add a lookup field, writes
+      resolve and check, `list_rows` shows the text, filters and sorts on it.
+- [x] Protection: deleting pointed-at rows, dropping the target table or the
+      shown field; renames follow.
+- [x] Turn an existing words field into a lookup ("Customer" names in
+      `orders` → rows of `customers`), saying which values match nothing.
+- [x] Reports, exports and summaries show the text.
+- [x] CLI and MCP.
+- [x] Window: add a lookup field; the form picks from a list; the grid takes
+      a typed name; the filter bar.

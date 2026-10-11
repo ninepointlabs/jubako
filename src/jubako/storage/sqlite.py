@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from ..errors import DatabaseExists, DatabaseMissing, JubakoError
-from ..fields import BOOLEAN, DATE, INTEGER, REAL, TEXT, Field
+from ..fields import BOOLEAN, DATE, INTEGER, LOOKUP, REAL, TEXT, Field
 from ..paths import database_path
 from .base import ROW_ID, Storage, check_name
 
@@ -19,6 +19,7 @@ _COLUMN_TYPES = {
     REAL: "REAL",
     DATE: "TEXT",
     BOOLEAN: "INTEGER",
+    LOOKUP: "INTEGER",  # the other row's id
 }
 
 _FROM_SQLITE = {
