@@ -22,6 +22,7 @@ Page {
     }
 
     FieldsDialog { id: fieldsDialog }
+    FormDesignDialog { id: formDesignDialog }
     AddFieldDialog { id: addFieldDialog }
     RenameFieldDialog { id: renameFieldDialog }
 
@@ -424,6 +425,7 @@ Page {
                             y: parent.height
                             MenuItem { text: "Add field\u2026"; objectName: "menuAddField"; onTriggered: addFieldDialog.openFor(false) }
                             MenuItem { text: "Fields: add, rename or delete\u2026"; onTriggered: fieldsDialog.openFor() }
+                            MenuItem { text: "Arrange the form\u2026"; objectName: "menuArrangeForm"; onTriggered: formDesignDialog.openFor() }
                             MenuSeparator {}
                             MenuItem { text: "Delete this table\u2026"; onTriggered: confirmDeleteTable.ask() }
                         }

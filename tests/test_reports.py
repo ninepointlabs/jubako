@@ -301,3 +301,29 @@ def test_report_follows_field_renames_and_drops(shop):
     schema.drop_field(shop, "orders", "paid")
     kept = load_report(shop, "By kind")
     assert kept["filter"] is None and kept["totals"] == {"quantity": "sum"}
+
+
+def test_a_form_can_hide_fields_and_they_keep_their_values(database, pets_csv):
+    from jubako import schema
+    from jubako.reports import reset_form
+
+    import_spreadsheet(database, str(pets_csv))
+    saved = save_form(database, "pets", {"title": "Pet card", "fields": ["age", "name"], "hidden": ["weight_kg"],
+                                         "labels": {"age": "Years"}})
+    assert saved["fields"] == ["age", "name", "adopted_on", "is_good", "weight_kg"]   # every field has a place
+    form = form_for(database, "pets")
+    assert form["fields"] == ["age", "name", "adopted_on", "is_good"]
+    assert form["order"][-1] == "weight_kg" and form["hidden"] == ["weight_kg"]
+    assert form["labels"]["age"] == "Years" and form["title"] == "Pet card"
+    with pytest.raises(JubakoError, match="at least one field"):
+        save_form(database, "pets", {"hidden": ["name", "age", "adopted_on", "is_good", "weight_kg"]})
+    with pytest.raises(BadName):
+        save_form(database, "pets", {"hidden": ["colour"]})
+    # A hidden field follows a rename, and leaves with a drop.
+    schema.rename_field(database, "pets", "weight_kg", "weight")
+    assert form_for(database, "pets")["hidden"] == ["weight"]
+    schema.drop_field(database, "pets", "weight")
+    assert form_for(database, "pets")["hidden"] == []
+    assert reset_form(database, "pets") is True
+    assert form_for(database, "pets")["saved"] is False
+    assert reset_form(database, "pets") is False

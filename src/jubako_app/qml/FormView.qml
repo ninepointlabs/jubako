@@ -3,14 +3,17 @@ import QtQuick.Controls
 import QtQuick.Layouts
 
 // One record at a time. Previous / Next walk the rows; Save writes the one
-// on screen; New row starts a blank one. Yes/no fields are a checkbox,
-// everything else is a box to type in.
+// on screen; New row starts a blank one; Duplicate starts a new row from the
+// one on screen. Yes/no fields are a checkbox, everything else is a box to
+// type in. Which fields show, in what order and called what, is the table's
+// form (Arrange…).
 Item {
     id: form
     property int rowIndex: -1          // which row of the grid is on screen; -1 = new row
     property int rowId: 0              // 0 = not saved yet
     property var edits: ({})           // field name -> value typed so far
     property bool dirty: false
+    property bool copied: false        // a new row started from another one
     property string error: ""
     signal deleteRequested(int rowId)
 
@@ -30,8 +33,32 @@ Item {
             edits = rec.values
         }
         dirty = false
+        copied = false
         fieldsRepeater.model = []      // rebuild the editors so they show the new values
         fieldsRepeater.model = Bridge.formFields
+    }
+
+    // A new row with the values of the one on screen. No-repeats fields start blank, or it could not be saved.
+    function duplicate() {
+        if (dirty && !save())
+            return
+        const next = Object.assign({}, edits)
+        const cleared = []
+        for (const f of Bridge.fields) {
+            if (f.unique && next[f.name] !== undefined && next[f.name] !== "") {
+                next[f.name] = ""
+                cleared.push(f.label)
+            }
+        }
+        rowIndex = -1
+        rowId = 0
+        edits = next
+        dirty = true
+        copied = true
+        error = ""
+        fieldsRepeater.model = []
+        fieldsRepeater.model = Bridge.formFields
+        if (cleared.length > 0) toast.show(cleared.join(", ") + (cleared.length === 1 ? " is" : " are") + " left blank: it cannot repeat.")
     }
 
     function set(name, value) {
@@ -77,9 +104,11 @@ Item {
             ActionButton { text: "Next ›"; enabled: Bridge.rows.rowCount() > 0 && form.rowIndex < Bridge.rows.rowCount() - 1; onClicked: form.go(1) }
             Label {
                 Layout.leftMargin: 8
-                text: form.rowIndex < 0
-                    ? "New row"
-                    : "Row " + (form.rowIndex + 1) + " of " + Bridge.rows.rowCount()
+                objectName: "formWhere"
+                text: (Bridge.formTitle !== "" ? Bridge.formTitle + "  \u00b7  " : "")
+                    + (form.rowIndex < 0
+                       ? (form.copied ? "New row (a copy)" : "New row")
+                       : "Row " + (form.rowIndex + 1) + " of " + Bridge.rows.rowCount())
                 font.pointSize: 13
                 font.bold: true
             }
@@ -89,6 +118,13 @@ Item {
                 font.pointSize: 10
             }
             Item { Layout.fillWidth: true }
+            ActionButton { text: "Arrange\u2026"; objectName: "formArrange"; onClicked: formDesignDialog.openFor() }
+            ActionButton {
+                text: "Duplicate"
+                objectName: "formDuplicate"
+                enabled: form.rowId > 0 && Bridge.canEdit
+                onClicked: form.duplicate()
+            }
             ActionButton { text: "New row"; onClicked: { if (!form.dirty || form.save()) form.load(-1) } }
         }
 

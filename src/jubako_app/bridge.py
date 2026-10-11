@@ -40,7 +40,7 @@ from jubako.filters import (
 )
 from jubako.importer import import_spreadsheet, import_workbook, plan_import, workbook_plan
 from jubako.paths import default_documents_dir, home
-from jubako.reports import cell_text, form_for
+from jubako.reports import cell_text, form_for, reset_form, save_form
 from jubako.storage import BACKENDS, SQLITE, Storage, create_database, open_database
 
 PAGE_SIZE = 500
@@ -215,6 +215,7 @@ class Bridge(QObject):
         self._rows.editor = self._edit_cell
         self._fields: list[dict[str, Any]] = []
         self._form_fields: list[dict[str, Any]] = []
+        self._form_title = ""
         self._job: Job | None = None
         self._busy_text = ""
         #: The active filter per table, kept for as long as the database is open.
@@ -303,6 +304,51 @@ class Bridge(QObject):
     def formFields(self) -> list[dict[str, Any]]:  # noqa: N802
         """The fields in the order and with the labels the table's form asks for."""
         return list(self._form_fields)
+
+    @Property(str, notify=tableChanged)
+    def formTitle(self) -> str:  # noqa: N802
+        """The heading the current table's form shows."""
+        return self._form_title
+
+    @Slot(result="QVariantMap")
+    def formDesign(self) -> dict[str, Any]:  # noqa: N802
+        """The current table's form, for arranging: title, and every field in order with whether it shows."""
+        if self._storage is None or not self._current_table:
+            return {"title": "", "items": [], "saved": False}
+        form = form_for(self._storage, self._current_table)
+        info = {f["name"]: f for f in self._fields}
+        items = [{"name": name, "label": form["labels"].get(name, name), "defaultLabel": info[name]["label"],
+                  "type": info[name]["type"], "shown": name not in form["hidden"]}
+                 for name in form["order"] if name in info]
+        return {"title": form["title"], "items": items, "saved": form["saved"]}
+
+    @Slot(str, "QVariantList", result="QVariantMap")
+    def saveFormDesign(self, title: str, items: list) -> dict:  # noqa: N802
+        """Keep the form's order, labels, title and hidden fields. Items are {name, label, shown}."""
+        if self._storage is None or not self._current_table:
+            return {"ok": False, "error": "Pick a table first."}
+        items = [dict(item) for item in items]
+        try:
+            save_form(self._storage, self._current_table, {
+                "title": title,
+                "fields": [item["name"] for item in items],
+                "labels": {item["name"]: str(item.get("label") or "") for item in items},
+                "hidden": [item["name"] for item in items if not item.get("shown", True)],
+            })
+        except JubakoError as error:
+            return {"ok": False, "error": str(error)}
+        self.selectTable(self._current_table)
+        self.message.emit("Kept the form. Hidden fields keep their values.")
+        return {"ok": True}
+
+    @Slot(result="QVariantMap")
+    def resetFormDesign(self) -> dict:  # noqa: N802
+        """Back to the plain form: every field, in table order, with the field labels."""
+        if self._storage is None or not self._current_table:
+            return {"ok": False, "error": "Pick a table first."}
+        reset_form(self._storage, self._current_table)
+        self.selectTable(self._current_table)
+        return {"ok": True}
 
     @Slot(result="QVariantList")
     def fieldTypes(self) -> list[dict[str, str]]:  # noqa: N802
@@ -1068,8 +1114,10 @@ class Bridge(QObject):
                 {"name": name, "label": form["labels"].get(name, name), "type": kinds[name]}
                 for name in form["fields"] if name in kinds
             ]
+            self._form_title = form["title"]
         except JubakoError:
             self._form_fields = list(self._fields)
+            self._form_title = table
         self._shown = len(page["rows"])
         self._total = page["total"]
         self.tableChanged.emit()

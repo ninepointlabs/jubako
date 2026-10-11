@@ -36,10 +36,10 @@ and the window, with tests. Work order: 7a → 6 → 4 → 2 → 3 → 5 → 7b.
 
 ## 5. Forms
 
-- [ ] Form designer: field order, hide a field, relabel, form title (the core
+- [x] Form designer: field order, hide a field, relabel, form title (the core
       `save_form` already stores order and labels; there is no window for it).
-- [ ] Hidden fields stay out of the form but keep their data.
-- [ ] Form buttons: Duplicate this record.
+- [x] Hidden fields stay out of the form but keep their data.
+- [x] Form buttons: Duplicate this record.
 
 ## 6. Reports
 

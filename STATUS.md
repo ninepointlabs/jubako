@@ -2,7 +2,7 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-10.**
 
-## 2026-10-10 — Access features, part 3: the Database menu
+## 2026-10-10 — Access features, part 3: the Database menu and forms
 
 **3. Backstage.** The header's "Open another" became **Database…**: New
 database, New from a template, Open another, Open a recent one, Save a
@@ -16,15 +16,24 @@ copy…, Rename…, Close, Delete this whole database (moved here from More…).
   name; the recent list follows.
 - CLI `jubako copy`, `jubako rename`; MCP `copy_database`, `rename_database`.
 
+**5. Forms.** **Arrange…** on the form (and "Arrange the form…" in More…):
+title, order (↑ ↓), "Show", and what each field is called on the form;
+"Back to the plain form" forgets it. A saved form keeps every field's place
+plus a `hidden` list; hidden fields keep their values (the form sends back
+every value it loaded). Renames and drops follow into `hidden`. The form
+shows its title next to "Row 3 of 7". **Duplicate** starts a new row from
+the one on screen; no-repeats fields start blank, with a note. MCP
+`create_form` takes `hidden`; `get_form` returns `order` and `hidden`.
+
 **Fixed on the way.** `apply_template` failed halfway when a view by the
 same name was left over from an old table (the low-level
 `Storage.drop_table` leaves views behind; `schema.drop_table` does not). A
 template's views now replace such leftovers.
 
-Verified live again on PostgreSQL 17 and MariaDB 11: renaming; save a copy
-refused for a server.
+Verified live again on PostgreSQL 17 and MariaDB 11: hidden form fields,
+renaming; save a copy refused for a server.
 
-214 tests pass.
+217 tests pass.
 
 ## 2026-10-10 — Access features, part 2: templates and keys
 

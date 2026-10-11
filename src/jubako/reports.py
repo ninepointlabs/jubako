@@ -372,22 +372,34 @@ def export_report(
 # -------------------------------------------------------------------------
 
 def save_form(storage: Storage, table: str, form: dict[str, Any]) -> dict[str, Any]:
-    """Keep a simple form layout for a table: field order and labels."""
+    """Keep a form layout for a table: field order, labels, title, and fields it hides.
+
+    A hidden field stays out of the form; its values are kept in the table.
+    Fields left out of `fields` go on the end, so every field has a place.
+    """
     info = storage.describe_table(table)
     known = {f.name: f for f in info.fields}
-    order = list(form.get("fields") or [f.name for f in info.fields])
+    order = list(dict.fromkeys(form.get("fields") or [f.name for f in info.fields]))
     for name in order:
         if name not in known:
             raise BadName(f"The table {table!r} has no field called {name!r}.")
+    order += [f.name for f in info.fields if f.name not in order]
     labels = dict(form.get("labels") or {})
     for name in labels:
         if name not in known:
             raise BadName(f"The table {table!r} has no field called {name!r}.")
+    hidden = [name for name in dict.fromkeys(form.get("hidden") or [])]
+    for name in hidden:
+        if name not in known:
+            raise BadName(f"The table {table!r} has no field called {name!r}.")
+    if len(hidden) >= len(order):
+        raise JubakoError("A form needs at least one field to show.")
     saved = {
         "table": table,
-        "title": str(form.get("title") or info.name.replace("_", " ").title()),
+        "title": str(form.get("title") or info.name.replace("_", " ").title()).strip()[:MAX_TEXT],
         "fields": order,
-        "labels": {name: str(labels.get(name) or known[name].title) for name in order},
+        "labels": {name: str(labels.get(name) or known[name].title).strip() or known[name].title for name in order},
+        "hidden": hidden,
     }
     storage.set_info(FORM_KEY + table, json.dumps(saved))
     return saved
@@ -404,7 +416,11 @@ def load_form(storage: Storage, table: str) -> dict[str, Any] | None:
 
 
 def form_for(storage: Storage, table: str) -> dict[str, Any]:
-    """The saved form, or the plain default: every field, in table order."""
+    """The saved form, or the plain default: every field, in table order.
+
+    `fields` is what the form shows, in order; `order` is every field's
+    place (hidden ones too); `hidden` is what it leaves out.
+    """
     saved = load_form(storage, table)
     info = storage.describe_table(table)
     known = {f.name: f for f in info.fields}
@@ -412,16 +428,32 @@ def form_for(storage: Storage, table: str) -> dict[str, Any]:
         # Fields added since the form was saved go on the end; removed ones drop out.
         order = [n for n in saved.get("fields", []) if n in known]
         order += [f.name for f in info.fields if f.name not in order]
+        hidden = [n for n in saved.get("hidden", []) if n in known]
         labels = {n: saved.get("labels", {}).get(n) or known[n].title for n in order}
-        return {"table": table, "title": saved.get("title") or info.name, "fields": order,
-                "labels": labels, "saved": True}
+        shown = [n for n in order if n not in hidden] or order
+        return {"table": table, "title": saved.get("title") or info.name, "fields": shown,
+                "order": order, "hidden": [n for n in hidden if n not in shown], "labels": labels, "saved": True}
     return {
         "table": table,
         "title": info.name.replace("_", " ").title(),
         "fields": [f.name for f in info.fields],
+        "order": [f.name for f in info.fields],
+        "hidden": [],
         "labels": {f.name: f.title for f in info.fields},
         "saved": False,
     }
+
+
+def reset_form(storage: Storage, table: str) -> bool:
+    """Forget a table's saved form: it goes back to every field, in table order."""
+    if load_form(storage, table) is None:
+        return False
+    storage.execute(
+        f"DELETE FROM {storage.quote('jubako_info')} WHERE {storage.quote('key')} = {storage.placeholder(0)}",
+        (FORM_KEY + table,),
+    )
+    storage.commit()
+    return True
 
 
 def save_report(storage: Storage, spec: dict[str, Any]) -> dict[str, Any]:

@@ -998,3 +998,52 @@ def test_rename_and_copy_the_database_from_the_bridge(pets, sandbox):
     made = pets.saveCopy(suggested)
     assert made["ok"] is True and Path(made["file"]).exists()
     assert pets.location.endswith("pets.jubadb")       # still working in the original
+
+
+def test_arrange_the_form_from_the_bridge(pets):
+    design = pets.formDesign()
+    assert [item["name"] for item in design["items"]] == ["name", "age", "adopted_on", "is_good", "weight_kg"]
+    assert all(item["shown"] for item in design["items"])
+    items = [dict(item) for item in design["items"]]
+    items.insert(0, items.pop(1))                  # age first
+    items[-1]["shown"] = False                      # hide weight
+    items[0]["label"] = "Years old"
+    assert pets.saveFormDesign("Pet card", items)["ok"] is True
+    assert [f["name"] for f in pets.formFields] == ["age", "name", "adopted_on", "is_good"]
+    assert pets.formFields[0]["label"] == "Years old"
+    assert pets.formTitle == "Pet card"
+    # Saving a record from the form leaves the hidden field's value alone.
+    record = pets.rows.record(0)
+    shown = {name: record["values"][name] for name in ("age", "name")}
+    assert pets.saveRow(record["id"], {**shown, "age": "5"})["ok"] is True
+    assert pets.rows.record(pets.rows.rowIndexOf(record["id"]))["values"]["weight_kg"] == record["values"]["weight_kg"]
+    every_off = [{**item, "shown": False} for item in items]
+    assert pets.saveFormDesign("", every_off)["ok"] is False
+    assert pets.resetFormDesign()["ok"] is True
+    assert len(pets.formFields) == 5
+
+
+def test_the_form_duplicates_a_record_without_its_no_repeats_values(app, bridge, sandbox):
+    from PySide6.QtCore import QEvent
+    from PySide6.QtQml import QQmlEngine, QQmlExpression
+
+    engine, window, _ = _load_window(app, bridge)
+    assert bridge.newFromTemplate("sqlite", str(sandbox / "dup.jubadb"), "", {}, "inventory", True)["ok"] is True
+    try:
+        form_view = window.findChild(QObject, "formView")
+
+        def ask(code):
+            expression = QQmlExpression(QQmlEngine.contextForObject(form_view), form_view, code)
+            value = expression.evaluate()[0]
+            assert not expression.hasError(), expression.error().toString()
+            return value
+
+        ask("formView.load(0); formView.duplicate()")
+        assert ask("formView.rowId") == 0 and ask("formView.copied") is True
+        assert ask("formView.edits.sku") == ""                      # SKU cannot repeat
+        assert ask("formView.edits.item") == bridge.rows.record(0)["values"]["item"]
+        ask("formView.set('sku', 'BL-BR-2'); formView.save()")
+        assert bridge.totalRows == 8
+    finally:
+        engine.deleteLater()
+        app.sendPostedEvents(None, QEvent.Type.DeferredDelete)

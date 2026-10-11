@@ -29,7 +29,8 @@ for exactly what works today.
   is written. A workbook with several sheets can become one table per sheet.
 - **Look at your rows.** A grid of everything in a table. Tap a row to pick
   it, double-tap a cell to change it.
-- **Type into a form.** One record at a time: Previous, Next, Save, New row.
+- **Type into a form.** One record at a time: Previous, Next, Save, New row,
+  Duplicate. Arrange it: field order, what each is called, which to leave out.
 - **Change your mind.** Add a field, rename a field, delete a field, delete
   a table, or delete the whole database file. The destructive ones ask first.
   Mark a field "no repeats", like an email or a product code.

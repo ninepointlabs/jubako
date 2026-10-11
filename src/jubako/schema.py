@@ -179,6 +179,7 @@ def _retarget(storage: Storage, table: str, old: str, new: str | None) -> None:
             else:
                 labels[name] = label
         form["fields"], form["labels"] = fields, labels
+        form["hidden"] = [(new if n == old else n) for n in form.get("hidden", []) if new or n != old]
         storage.set_info(FORM_KEY + table, json.dumps(form))
     for item in list_reports(storage):
         if item["table"] != table:

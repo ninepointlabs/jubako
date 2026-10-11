@@ -402,7 +402,7 @@ def tool_create_form(arguments: dict[str, Any]) -> dict[str, Any]:
             storage,
             arguments["table"],
             {"title": arguments.get("title"), "fields": arguments.get("fields"),
-             "labels": arguments.get("labels")},
+             "labels": arguments.get("labels"), "hidden": arguments.get("hidden")},
         )
     return {"saved": True, "form": form}
 
@@ -723,8 +723,9 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "create_form",
         "description": (
-            "Keep a simple form for a table: which fields, in what order, with what labels. "
-            "The app's form view uses it. Fields left out still show, after the chosen ones."
+            "Keep a form for a table: which fields, in what order, with what labels, and which it hides. "
+            "The app's form view uses it. Fields left out of `fields` still show, after the chosen ones; "
+            "put a field in `hidden` to keep it off the form (its values stay in the table)."
         ),
         "inputSchema": {
             "type": "object",
@@ -734,6 +735,7 @@ TOOLS: list[dict[str, Any]] = [
                 "title": {"type": "string"},
                 "fields": {"type": "array", "items": {"type": "string"}, "description": "Field names in order."},
                 "labels": {"type": "object", "description": "Field name to the label people see."},
+                "hidden": {"type": "array", "items": {"type": "string"}, "description": "Fields the form leaves out."},
             },
             "required": ["table"],
             "additionalProperties": False,
