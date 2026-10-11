@@ -20,6 +20,7 @@ from .errors import JubakoError
 from .exporter import export_table
 from .importer import import_spreadsheet, import_workbook, plan_import
 from .reports import export_report
+from . import schema
 from . import views as _views
 from .storage import BACKENDS, create_database, open_database
 
@@ -48,6 +49,20 @@ def cmd_new(args: argparse.Namespace) -> int:
     ) as storage:
         _remember(storage)
         print(f"Made the database {storage.title!r} at {storage.location()}")
+    return 0
+
+
+def cmd_unique(args: argparse.Namespace) -> int:
+    with open_database(backend="sqlite", path=args.path) as storage:
+        schema.set_unique(storage, args.table, args.field, not args.off)
+    print(f"{args.field} may repeat again." if args.off else f"{args.field} can no longer repeat.")
+    return 0
+
+
+def cmd_add_row_number(args: argparse.Namespace) -> int:
+    with open_database(backend="sqlite", path=args.path) as storage:
+        result = schema.add_row_number(storage, args.table)
+    print(f"{args.table} has a row number now ({result['rows']} rows), so its rows can be changed.")
     return 0
 
 
@@ -228,6 +243,18 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_argument("path")
     sub.add_argument("--overwrite", action="store_true")
     sub.set_defaults(func=cmd_new)
+
+    sub = subs.add_parser("unique", help="Make a field no-repeats (like an email or a code)")
+    sub.add_argument("path")
+    sub.add_argument("table")
+    sub.add_argument("field")
+    sub.add_argument("--off", action="store_true", help="Let it repeat again")
+    sub.set_defaults(func=cmd_unique)
+
+    sub = subs.add_parser("add-row-number", help="Give a table made elsewhere a row number, so it can be edited")
+    sub.add_argument("path")
+    sub.add_argument("table")
+    sub.set_defaults(func=cmd_add_row_number)
 
     sub = subs.add_parser("import", help="Put a spreadsheet into a database")
     sub.add_argument("path")

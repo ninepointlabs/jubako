@@ -96,6 +96,26 @@ Page {
     }
 
     Dialog {
+        id: confirmRowNumber
+        title: "Add a row number to \u201c" + Bridge.currentTable + "\u201d?"
+        modal: true
+        anchors.centerIn: parent
+        width: 480
+        padding: 20
+        Overlay.modal: Rectangle { color: Theme.isDark ? "#99000000" : "#55000000" }
+        contentItem: Label {
+            text: "Jubako adds a numbered id column, so each row can be changed and deleted. Every row and value stays."
+                + (Bridge.isLocalFile ? " The table is rebuilt to do it, so a program that made it with special column rules may want to know." : "")
+            wrapMode: Text.WordWrap
+        }
+        footer: DialogButtonBox {
+            ActionButton { text: "Not now"; DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
+            ActionButton { text: "Add the row number"; primary: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole }
+        }
+        onAccepted: { const r = Bridge.addRowNumber(); if (!r.ok) toast.show(r.error) }
+    }
+
+    Dialog {
         id: confirmDelete
         property int rowId: 0
         function ask(id) { rowId = id; open() }
@@ -305,7 +325,7 @@ Page {
                     ActionButton { text: "Add row"; onClicked: page.addRow() }
                     ActionButton {
                         text: "Delete row"
-                        enabled: page.mode === "form" ? formView.rowId > 0 : page.selectedRow >= 0
+                        enabled: Bridge.canEdit && (page.mode === "form" ? formView.rowId > 0 : page.selectedRow >= 0)
                         onClicked: page.deleteSelected()
                     }
                     ActionButton {
@@ -329,6 +349,30 @@ Page {
                     Layout.fillWidth: true
                     Layout.bottomMargin: 10
                     visible: Bridge.fields.length > 0
+                }
+
+                // A table made outside Jubako without a row number: readable, not editable, until it has one.
+                Rectangle {
+                    objectName: "noRowNumberBanner"
+                    Layout.fillWidth: true
+                    Layout.bottomMargin: 10
+                    visible: !Bridge.canEdit && Bridge.currentTable !== ""
+                    implicitHeight: bannerRow.implicitHeight + 20
+                    radius: 8
+                    color: Theme.lighterBackground
+                    border.color: Theme.yellow
+                    RowLayout {
+                        id: bannerRow
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        spacing: 12
+                        Label {
+                            Layout.fillWidth: true
+                            text: "This table came from outside Jubako and has no row number, so its rows cannot be changed here."
+                            wrapMode: Text.WordWrap
+                        }
+                        ActionButton { text: "Add a row number\u2026"; primary: true; onClicked: confirmRowNumber.open() }
+                    }
                 }
 
                 FormView {

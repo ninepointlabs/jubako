@@ -7,14 +7,23 @@ nothing above this layer needs to know which engine is underneath.
 from __future__ import annotations
 
 import datetime as _dt
+import hashlib
 import json
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass, field as dc_field
 from typing import Any
 
-from ..errors import BadName, TableMissing
-from ..fields import INTERNAL_PREFIX, LEGACY_INTERNAL_PREFIX, Field, coerce, is_safe_name
+from ..errors import BadName, JubakoError, TableMissing
+from ..fields import (
+    INTERNAL_PREFIX,
+    LEGACY_INTERNAL_PREFIX,
+    UNIQUE_TYPES,
+    Field,
+    coerce,
+    field_dict,
+    is_safe_name,
+)
 from ..filters import normalise_filter, normalise_sort, order_clause, where_clause
 
 #: Table that remembers each table's declared fields and labels.
@@ -30,6 +39,14 @@ class TableInfo:
     name: str
     fields: list[Field]
     row_count: int = 0
+    #: False for a table made outside Jubako without an `id`: it can be read, not edited row by row.
+    has_row_id: bool = True
+
+
+NO_ROW_ID = (
+    "This table came from outside Jubako and has no row number, so its rows cannot be "
+    "changed one at a time. Add a row number to it first."
+)
 
 
 @dataclass
@@ -229,6 +246,10 @@ class Storage(ABC):
 
         columns = [self.primary_key_sql()] + [self.column_sql(f) for f in fields]
         self.execute(f"CREATE TABLE {self.quote(table)} ({', '.join(columns)})")
+        for field in fields:
+            if field.unique:
+                self._check_unique_type(field)
+                self._create_unique_index(table, field)
         self.remember_fields(table, fields)
         self.commit()
         return TableInfo(name=table, fields=list(fields), row_count=0)
@@ -242,7 +263,11 @@ class Storage(ABC):
             raise BadName(f"{ROW_ID!r} is kept for the row number; pick another name.")
         if field.name in {f.name for f in info.fields}:
             raise BadName(f"There is already a field called {field.name!r} in {table!r}.")
+        if field.unique:
+            self._check_unique_type(field)
         self.execute(f"ALTER TABLE {self.quote(table)} ADD COLUMN {self.column_sql(field)}")
+        if field.unique:
+            self._create_unique_index(table, field)  # rows already there are blank, and blanks may repeat
         fields = list(info.fields) + [field]
         self.remember_fields(table, fields)
         self.commit()
@@ -258,6 +283,9 @@ class Storage(ABC):
             raise BadName(f"The table {table!r} has no field called {name!r}.")
         if len(info.fields) == 1:
             raise BadName("A table needs at least one field. Delete the table instead.")
+        if any(f.name == name and f.unique for f in info.fields):
+            # SQLite will not drop a column that has an index on it.
+            self.execute(self.drop_index_sql(unique_index_name(table, name), table))
         self.execute(f"ALTER TABLE {self.quote(table)} DROP COLUMN {self.quote(name)}")
         remaining = [f for f in info.fields if f.name != name]
         self.remember_fields(table, remaining)
@@ -276,15 +304,21 @@ class Storage(ABC):
             raise BadName(f"{ROW_ID!r} is kept for the row number; pick another name.")
         if new != old and new in names:
             raise BadName(f"There is already a field called {new!r} in {table!r}.")
+        renamed_unique = new != old and any(f.name == old and f.unique for f in info.fields)
+        if renamed_unique:
+            self.execute(self.drop_index_sql(unique_index_name(table, old), table))
         if new != old:
             self.execute(
                 f"ALTER TABLE {self.quote(table)} RENAME COLUMN {self.quote(old)} TO {self.quote(new)}"
             )
         fields = [
             Field(name=new if f.name == old else f.name, type=f.type,
-                  label=(label if label is not None else f.label) if f.name == old else f.label)
+                  label=(label if label is not None else f.label) if f.name == old else f.label,
+                  unique=f.unique)
             for f in info.fields
         ]
+        if renamed_unique:
+            self._create_unique_index(table, next(f for f in fields if f.name == new))
         self.remember_fields(table, fields)
         self.commit()
         return TableInfo(name=table, fields=fields, row_count=info.row_count)
@@ -292,6 +326,79 @@ class Storage(ABC):
     def relabel_field(self, table: str, name: str, label: str) -> TableInfo:
         """Change only the words people see for a field."""
         return self.rename_field(table, name, name, label=label)
+
+    def set_unique(self, table: str, name: str, unique: bool) -> TableInfo:
+        """Turn "no repeats" on or off for a field. Refused while values already repeat."""
+        info = self.describe_table(table)
+        known = {f.name: f for f in info.fields}
+        if name not in known:
+            raise BadName(f"The table {table!r} has no field called {name!r}.")
+        field = known[name]
+        if field.unique == bool(unique):
+            return info
+        if unique:
+            self._check_unique_type(field)
+            repeats = self.repeated_values(table, name)
+            if repeats:
+                shown = ", ".join(f"“{_value_text(value)}” ({count} rows)" for value, count in repeats[:3])
+                more = f" and {len(repeats) - 3} more" if len(repeats) > 3 else ""
+                raise JubakoError(
+                    f"{field.title} already repeats, so it cannot be made no-repeats yet: {shown}{more}. "
+                    "Change or delete those rows first."
+                )
+            self._create_unique_index(table, field)
+        else:
+            self.execute(self.drop_index_sql(unique_index_name(table, name), table))
+        fields = [Field(name=f.name, type=f.type, label=f.label, unique=bool(unique) if f.name == name else f.unique)
+                  for f in info.fields]
+        self.remember_fields(table, fields)
+        self.commit()
+        return TableInfo(name=table, fields=fields, row_count=info.row_count)
+
+    def repeated_values(self, table: str, name: str, *, limit: int = 20) -> list[tuple[Any, int]]:
+        """Values that appear in more than one row of a field (blanks do not count)."""
+        column = self.quote(name)
+        rows = self.query(
+            f"SELECT {column}, COUNT(*) FROM {self.quote(table)} WHERE {column} IS NOT NULL "
+            f"GROUP BY {column} HAVING COUNT(*) > 1 ORDER BY COUNT(*) DESC LIMIT {int(limit)}"
+        )
+        return [(to_jsonable(value), int(count)) for value, count in rows]
+
+    def add_row_number(self, table: str) -> TableInfo:
+        """Give a table made outside Jubako an automatic `id`, so its rows can be edited."""
+        info = self.describe_table(table)
+        if info.has_row_id:
+            raise JubakoError("This table already has a row number.")
+        self.add_row_id_column(table)
+        self.remember_fields(table, info.fields)
+        self.commit()
+        return self.describe_table(table)
+
+    def _check_unique_type(self, field: Field) -> None:
+        if field.type not in UNIQUE_TYPES:
+            raise JubakoError(f"A yes / no field like {field.title} cannot be no-repeats: it only has two values.")
+
+    def _create_unique_index(self, table: str, field: Field) -> None:
+        self.execute(
+            f"CREATE UNIQUE INDEX {self.quote(unique_index_name(table, field.name))} "
+            f"ON {self.quote(table)} ({self.unique_column_sql(field)})"
+        )
+
+    def _check_repeats(self, table: str, fields: dict[str, Field], values: dict[str, Any],
+                       row_id: int | None = None) -> None:
+        """Say in words which no-repeats field a write would repeat, before the engine refuses it."""
+        for name, value in values.items():
+            field = fields.get(name)
+            if field is None or not field.unique or value is None:
+                continue
+            sql = f"SELECT COUNT(*) FROM {self.quote(table)} WHERE {self.quote(name)} = {self.placeholder(0)}"
+            params: list[Any] = [value]
+            if row_id is not None:
+                sql += f" AND {self.quote(ROW_ID)} <> {self.placeholder(1)}"
+                params.append(int(row_id))
+            rows = self.query(sql, params)
+            if rows and int(rows[0][0]) > 0:
+                raise JubakoError(f"{field.title} cannot repeat: “{_value_text(value)}” is already in another row.")
 
     def drop_table(self, table: str) -> None:
         check_user_table(table)
@@ -303,9 +410,10 @@ class Storage(ABC):
         self.commit()
 
     def remember_fields(self, table: str, fields: Sequence[Field]) -> None:
-        spec = json.dumps(
-            [{"name": f.name, "type": f.type, "label": f.label or f.title} for f in fields]
-        )
+        spec = json.dumps([
+            {"name": f.name, "type": f.type, "label": f.label or f.title, **({"unique": True} if f.unique else {})}
+            for f in fields
+        ])
         self.execute(
             f"DELETE FROM {self.quote(META_TABLE)} WHERE {self.quote('table_name')} = {self.placeholder(0)}",
             (table,),
@@ -328,18 +436,45 @@ class Storage(ABC):
             spec = json.loads(rows[0][0])
         except (TypeError, ValueError):
             return None
-        return [Field(name=item["name"], type=item["type"], label=item.get("label")) for item in spec]
+        return [Field(name=item["name"], type=item["type"], label=item.get("label"), unique=bool(item.get("unique")))
+                for item in spec]
 
     def describe_table(self, table: str) -> TableInfo:
         check_user_table(table)
         if not self.has_table(table):
             raise TableMissing(f"This database has no table called {table!r}.")
-        fields = self.remembered_fields(table) or self.introspect_fields(table)
-        return TableInfo(name=table, fields=fields, row_count=self.count_rows(table))
+        remembered = self.remembered_fields(table)
+        if remembered:
+            fields, has_row_id = remembered, True
+        else:
+            # Made outside Jubako: read the engine's columns, and check for a row number.
+            fields = self.introspect_fields(table)
+            has_row_id = ROW_ID in self.column_names(table)
+        return TableInfo(name=table, fields=fields, row_count=self.count_rows(table), has_row_id=has_row_id)
 
     @abstractmethod
     def introspect_fields(self, table: str) -> list[Field]:
         """Read the engine's own column list, for tables we did not make."""
+
+    @abstractmethod
+    def column_names(self, table: str) -> list[str]:
+        """Every column the engine has for a table, `id` included."""
+
+    def add_row_id_column(self, table: str) -> None:
+        """Give a table made elsewhere Jubako's auto-numbered `id` (each engine has its own way)."""
+        raise JubakoError("This kind of database cannot add a row number here.")
+
+    def unique_column_sql(self, field: Field) -> str:
+        """The column as a unique index wants it (MySQL needs a length for a TEXT column)."""
+        return self.quote(field.name)
+
+    def drop_index_sql(self, index: str, table: str) -> str:
+        return f"DROP INDEX {self.quote(index)}"
+
+    def rollback(self) -> None:
+        connection = getattr(self, "connection", None)
+        if connection is not None:
+            connection.rollback()
 
     # -- rows -------------------------------------------------------------
     def count_rows(self, table: str, *, where: dict[str, Any] | None = None) -> int:
@@ -364,14 +499,25 @@ class Storage(ABC):
         params = [coerce(values[name], known[name].type) for name in names]
         if not names:
             raise BadName("Give at least one field a value.")
+        self._check_repeats(table, known, dict(zip(names, params)))
         sql = (
             f"INSERT INTO {self.quote(table)} "
             f"({', '.join(self.quote(n) for n in names)}) VALUES ({self.marks(len(names))})"
         )
-        cursor = self.execute(sql, params)
-        row_id = self.last_row_id(cursor, table)
+        cursor = self._write(sql, params)
+        row_id = self.last_row_id(cursor, table) if info.has_row_id else None
         self.commit()
         return row_id
+
+    def _write(self, sql: str, params: Sequence[Any]) -> Any:
+        """Run an INSERT or UPDATE; an engine's "that would repeat" comes back in words."""
+        try:
+            return self.execute(sql, params)
+        except Exception as error:  # each driver has its own IntegrityError class
+            if "integrity" in type(error).__name__.lower() or "unique" in str(error).lower():
+                self.rollback()
+                raise JubakoError("That would repeat a value in a field that must not repeat.") from error
+            raise
 
     def add_rows(self, table: str, fields: Sequence[Field], rows: Sequence[Sequence[Any]]) -> int:
         """Bulk insert already-typed rows. Used by the spreadsheet import."""
@@ -384,7 +530,7 @@ class Storage(ABC):
         )
         count = 0
         for row in rows:
-            self.execute(sql, list(row))
+            self._write(sql, list(row))
             count += 1
         self.commit()
         return count
@@ -416,9 +562,14 @@ class Storage(ABC):
         sort_spec = normalise_sort(info.fields, sort)
 
         columns = [ROW_ID] + [f.name for f in info.fields]
-        order = order_clause(self, sort_spec)
+        if not info.has_row_id and any(item["field"] == ROW_ID for item in sort_spec):
+            sort_spec = [item for item in sort_spec if item["field"] != ROW_ID]
+        selected = [self.quote(c) for c in columns]
+        if not info.has_row_id:
+            selected[0] = "NULL"  # no row number to show (and no column to read it from)
+        order = order_clause(self, sort_spec, row_id=info.has_row_id)
         sql = (
-            f"SELECT {', '.join(self.quote(c) for c in columns)} FROM {self.quote(table)} "
+            f"SELECT {', '.join(selected)} FROM {self.quote(table)} "
             + (f"WHERE {clause} " if clause else "")
             + (f"ORDER BY {order} " if order else "")
             + f"LIMIT {limit} OFFSET {offset}"
@@ -429,7 +580,7 @@ class Storage(ABC):
         matching = self.count_rows(table, where=filter_spec) if filter_spec else info.row_count
         return {
             "table": table,
-            "fields": [{"name": f.name, "type": f.type, "label": f.title} for f in info.fields],
+            "fields": [field_dict(f) for f in info.fields],
             "columns": columns,
             "rows": [
                 [as_field_value(value, types[index]) for index, value in enumerate(row)]
@@ -441,6 +592,7 @@ class Storage(ABC):
             "total_all": info.row_count,
             "filter": filter_spec,
             "sort": sort_spec,
+            "editable": info.has_row_id,
         }
 
     def update_row(self, table: str, row_id: int, values: dict[str, Any]) -> bool:
@@ -449,15 +601,18 @@ class Storage(ABC):
         unknown = [name for name in values if name not in known]
         if unknown:
             raise BadName(f"This table has no field called {unknown[0]!r}.")
+        if not info.has_row_id:
+            raise JubakoError(NO_ROW_ID)
         names = list(values)
         if not names:
             return False
+        params = [coerce(values[name], known[name].type) for name in names]
+        self._check_repeats(table, known, dict(zip(names, params)), row_id=int(row_id))
         assignments = ", ".join(
             f"{self.quote(name)} = {self.placeholder(i)}" for i, name in enumerate(names)
         )
-        params = [coerce(values[name], known[name].type) for name in names]
         params.append(int(row_id))
-        cursor = self.execute(
+        cursor = self._write(
             f"UPDATE {self.quote(table)} SET {assignments} "
             f"WHERE {self.quote(ROW_ID)} = {self.placeholder(len(names))}",
             params,
@@ -466,12 +621,24 @@ class Storage(ABC):
         return bool(getattr(cursor, "rowcount", 0))
 
     def delete_row(self, table: str, row_id: int) -> bool:
-        check_user_table(table)
-        if not self.has_table(table):
-            raise TableMissing(f"This database has no table called {table!r}.")
+        if not self.describe_table(table).has_row_id:
+            raise JubakoError(NO_ROW_ID)
         cursor = self.execute(
             f"DELETE FROM {self.quote(table)} WHERE {self.quote(ROW_ID)} = {self.placeholder(0)}",
             (int(row_id),),
         )
         self.commit()
         return bool(getattr(cursor, "rowcount", 0))
+
+
+def unique_index_name(table: str, field: str) -> str:
+    """The name of a no-repeats index: short, safe, and the same every time for a table and field."""
+    return "jubako_u_" + hashlib.sha1(f"{table}.{field}".encode()).hexdigest()[:16]
+
+
+def _value_text(value: Any) -> str:
+    value = to_jsonable(value)
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+

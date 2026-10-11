@@ -17,13 +17,15 @@ Dialog {
         nameField.text = ""
         nameTouched = false
         typeBox.currentIndex = 0
+        uniqueBox.checked = false
         error = ""
         open()
         labelField.forceActiveFocus()
     }
 
     function go() {
-        const r = Bridge.addField(labelField.text.trim(), nameField.text.trim(), typeBox.currentValue)
+        const unique = uniqueBox.checked && typeBox.currentValue !== "boolean"
+        const r = Bridge.addField(labelField.text.trim(), nameField.text.trim(), typeBox.currentValue, unique)
         if (!r.ok) { error = r.error; return }
         close()
         if (returnToFields) fieldsDialog.openFor()
@@ -67,6 +69,12 @@ Dialog {
             model: Bridge.fieldTypes()
             textRole: "label"
             valueRole: "key"
+        }
+        CheckBox {
+            id: uniqueBox
+            objectName: "addFieldUnique"
+            visible: typeBox.currentValue !== "boolean"
+            text: "No repeats: no two rows the same (like an email or a code)"
         }
         Label {
             Layout.fillWidth: true

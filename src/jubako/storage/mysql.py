@@ -152,3 +152,22 @@ class MySQLStorage(Storage):
             for name, kind in rows
             if str(name) != ROW_ID
         ]
+
+    def column_names(self, table: str) -> list[str]:
+        rows = self.query(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = DATABASE() AND table_name = %s ORDER BY ordinal_position",
+            (table,),
+        )
+        return [str(row[0]) for row in rows]
+
+    def add_row_id_column(self, table: str) -> None:
+        # MySQL numbers the rows already there as it adds the column.
+        self.execute(f"ALTER TABLE {self.quote(table)} ADD COLUMN {self.primary_key_sql()} FIRST")
+
+    def unique_column_sql(self, field: Field) -> str:
+        # A TEXT column can only be indexed on a prefix; 191 characters fits utf8mb4 in every row format.
+        return f"{self.quote(field.name)}(191)" if field.type == TEXT else self.quote(field.name)
+
+    def drop_index_sql(self, index: str, table: str) -> str:
+        return f"DROP INDEX {self.quote(index)} ON {self.quote(table)}"

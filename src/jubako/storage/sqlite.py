@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from ..errors import DatabaseExists, DatabaseMissing
+from ..errors import DatabaseExists, DatabaseMissing, JubakoError
 from ..fields import BOOLEAN, DATE, INTEGER, REAL, TEXT, Field
 from ..paths import database_path
 from .base import ROW_ID, Storage, check_name
@@ -126,3 +126,27 @@ class SQLiteStorage(Storage):
             declared = str(row[2] or "TEXT").upper().split("(")[0]
             fields.append(Field(name=name, type=_FROM_SQLITE.get(declared, TEXT)))
         return fields
+
+    def column_names(self, table: str) -> list[str]:
+        return [str(row[1]) for row in self.query(f"PRAGMA table_info({self.quote(table)})")]
+
+    def add_row_id_column(self, table: str) -> None:
+        """SQLite cannot add a primary key to a table, so the table is rebuilt with one, in one go."""
+        fields = self.introspect_fields(table)
+        names = ", ".join(self.quote(f.name) for f in fields)
+        temporary = f"jubako_rebuild_{table}"[:63]
+        self.connection.commit()
+        try:
+            self.connection.execute("BEGIN")
+            self.connection.execute(f"DROP TABLE IF EXISTS {self.quote(temporary)}")
+            columns = [self.primary_key_sql()] + [self.column_sql(f) for f in fields]
+            self.connection.execute(f"CREATE TABLE {self.quote(temporary)} ({', '.join(columns)})")
+            self.connection.execute(
+                f"INSERT INTO {self.quote(temporary)} ({names}) SELECT {names} FROM {self.quote(table)}"
+            )
+            self.connection.execute(f"DROP TABLE {self.quote(table)}")
+            self.connection.execute(f"ALTER TABLE {self.quote(temporary)} RENAME TO {self.quote(table)}")
+            self.connection.commit()
+        except sqlite3.Error as error:
+            self.connection.rollback()
+            raise JubakoError(f"Could not add a row number: {error}") from error

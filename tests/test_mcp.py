@@ -321,3 +321,29 @@ def test_grouped_report_through_the_tools(sandbox, pets_csv):
     assert kept["report"]["group_by"] == "is_good" and kept["report"]["show_count"] is True
     result = HANDLERS["export_report"]({"path": db, "name": "By goodness", "file": str(sandbox / "g.pdf")})
     assert result["rows_written"] == 4
+
+
+def test_unique_and_row_number_tools(sandbox):
+    import sqlite3
+
+    from jubako_mcp.server import HANDLERS
+
+    db = str(sandbox / "keys.jubadb")
+    HANDLERS["create_database"]({"title": "K", "path": db})
+    connection = sqlite3.connect(db)
+    connection.execute("CREATE TABLE birds (name TEXT)")
+    connection.execute("INSERT INTO birds VALUES ('Wren'), ('Wren')")
+    connection.commit()
+    connection.close()
+    described = HANDLERS["describe_table"]({"path": db, "table": "birds"})
+    assert described["editable"] is False and "add_row_number" in described["note"]
+    assert HANDLERS["add_row_number"]({"path": db, "table": "birds"})["rows"] == 2
+    with pytest.raises(Exception, match="already repeats"):
+        HANDLERS["set_unique"]({"path": db, "table": "birds", "field": "name"})
+    added = HANDLERS["add_field"]({"path": db, "table": "birds", "label": "Ring", "unique": True})
+    assert added["fields"][-1]["unique"] is True
+    HANDLERS["update_row"]({"path": db, "table": "birds", "id": 1, "values": {"ring": "A1"}})
+    with pytest.raises(Exception, match="Ring cannot repeat"):
+        HANDLERS["update_row"]({"path": db, "table": "birds", "id": 2, "values": {"ring": "A1"}})
+    assert HANDLERS["set_unique"]({"path": db, "table": "birds", "field": "ring", "unique": False})["fields"][-1] == {
+        "name": "ring", "type": "text", "label": "Ring"}

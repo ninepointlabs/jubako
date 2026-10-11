@@ -2,6 +2,47 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-10.**
 
+## 2026-10-10 — Access features, part 2: keys
+
+**2. Primary keys.**
+- **No repeats.** A field can be unique: a checkbox per field in Fields, and
+  in Add field. Turning it on is refused while values repeat, naming them
+  ("Supplier already repeats …: “Northwind Cycle Supply” (3 rows) …"). A
+  write that would repeat says which field and value, in words, before the
+  engine is asked; if the engine refuses anyway it still comes back in
+  words, and PostgreSQL's aborted transaction is rolled back. Follows field
+  renames; dropping the field drops its index first (SQLite needs that).
+  Not for yes/no fields.
+  CLI `jubako unique PATH TABLE FIELD [--off]`; MCP `set_unique`,
+  `add_field` `unique`. Field dicts only carry `"unique": true` when set, so
+  existing shapes are unchanged.
+- **Tables made elsewhere.** See "Row identity" below. CLI
+  `jubako add-row-number`; MCP `add_row_number`; `describe_table` says
+  `editable: false` for such a table.
+
+**Bugs found on the way (existing, now fixed).**
+- A table made outside Jubako with no `id`: SQLite read the quoted `"id"`
+  as the string `'id'`, so every row's number was the word "id" and grid or
+  form editing failed on `int('id')`. Now its row number is blank and
+  editing is refused in words.
+- **PostgreSQL: every yes/no filter failed** (`operator does not exist:
+  boolean = smallint`): the filter sent 0/1 to every engine. Only SQLite
+  gets 0/1 now.
+- **MySQL / MariaDB: every "contains" filter failed** with a syntax error:
+  `ESCAPE '\'` is unterminated in a MySQL string. The LIKE escape is now
+  `!` on every engine.
+
+**Verified live** against PostgreSQL 17 and MariaDB 11 (throwaway Docker
+containers): sorting with blanks last, date and number comparisons, any/all
+rules, starts with, yes/no filters, no-repeats (refusal in words, rollback,
+rename, drop, refusing while values repeat), adding a row number to a table
+made by hand.
+
+Not fixed (out of scope): `scripts/smoke_remote.py` stops at once because
+its table name `jubako_smoke_pets` starts with the reserved `jubako_`.
+
+198 tests pass.
+
 ## 2026-10-10 — Access features, part 1: queries and reports
 
 Working through `TODO.md` (the Access features worth having, items 1–7).
@@ -462,9 +503,16 @@ unit test performs the same rm-rf-then-rename twice.
   back into real dates and yes/no on the way out, so all three engines look the
   same to the app. PostgreSQL and MySQL use their own `DATE` and boolean types.
 - **Row identity.** Every table Jubako makes gets an automatic `id`. A
-  table made outside Jubako without an `id` column can be listed and
-  read, but not updated or deleted row by row, so the form and grid editing
-  will refuse it.
+  table made outside Jubako without an `id` column can be listed and read
+  (its row number shows blank), but `update_row` / `delete_row` refuse it
+  and the grid will not edit it; a banner offers **Add a row number**
+  (`schema.add_row_number`). SQLite rebuilds the table to add it (all rows
+  and values kept, original column constraints are not); PostgreSQL and
+  MySQL add the column in place.
+- **No repeats.** A unique index named `jubako_u_<hash>`. Blanks may repeat
+  on every engine. MySQL indexes the first 191 characters of a words field,
+  and its default collation treats "Ann" and "ann" as the same value;
+  SQLite and PostgreSQL do not.
 - **Where a database lives.** SQLite is a file the user picks. For PostgreSQL
   and MySQL, the *server* and the *database* must already exist. The app never
   passes `overwrite` for a server.

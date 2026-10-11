@@ -163,6 +163,18 @@ class PostgresStorage(Storage):
             if str(name) != ROW_ID
         ]
 
+    def column_names(self, table: str) -> list[str]:
+        rows = self.query(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = current_schema() AND table_name = %s ORDER BY ordinal_position",
+            (table,),
+        )
+        return [str(row[0]) for row in rows]
+
+    def add_row_id_column(self, table: str) -> None:
+        # PostgreSQL fills a new BIGSERIAL column for the rows already there.
+        self.execute(f"ALTER TABLE {self.quote(table)} ADD COLUMN {self.primary_key_sql()}")
+
 
 def _redact(dsn: str) -> str:
     out = []

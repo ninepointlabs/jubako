@@ -39,13 +39,18 @@ INTERNAL_PREFIX = "jubako_"
 LEGACY_INTERNAL_PREFIX = "omadb_"
 
 
+#: Field types that can be marked "no repeats" (a yes/no field only has two values).
+UNIQUE_TYPES = (TEXT, INTEGER, REAL, DATE)
+
+
 @dataclass(frozen=True)
 class Field:
-    """One column: the safe name, the label people read, and the type."""
+    """One column: the safe name, the label people read, the type, and whether values may repeat."""
 
     name: str
     type: str = TEXT
     label: str | None = None
+    unique: bool = False
 
     def __post_init__(self) -> None:
         if self.type not in FIELD_TYPES:
@@ -54,6 +59,14 @@ class Field:
     @property
     def title(self) -> str:
         return self.label or self.name.replace("_", " ").strip().title()
+
+
+def field_dict(field: Field) -> dict:
+    """A field as plain data: name, type, label, and "unique": True only for a no-repeats field."""
+    out = {"name": field.name, "type": field.type, "label": field.title}
+    if field.unique:
+        out["unique"] = True
+    return out
 
 
 def is_safe_name(name: str) -> bool:

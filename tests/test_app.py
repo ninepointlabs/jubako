@@ -939,3 +939,39 @@ def test_the_report_dialog_takes_the_sort_rules_and_a_saved_view(app, bridge, sa
     finally:
         engine.deleteLater()
         app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+def test_no_repeats_and_row_numbers_from_the_bridge(bridge, sandbox):
+    import sqlite3
+
+    from jubako.fields import Field
+
+    assert bridge.newDatabase("sqlite", str(sandbox / "stock.jubadb"), "Stock", {})["ok"] is True
+    bridge.storage().create_table("items", [Field("item", label="Item"), Field("sku", label="SKU", unique=True)])
+    bridge.storage().add_row("items", {"item": "Paint tube", "sku": "TB-700"})
+    bridge.selectTable("items")
+    assert next(f for f in bridge.fields if f["name"] == "sku")["unique"] is True
+    saved = bridge.saveRow(0, {"item": "Another tube", "sku": "TB-700"})
+    assert saved["ok"] is False and "SKU cannot repeat" in saved["error"]
+    assert bridge.setUnique("sku", False)["ok"] is True
+    assert bridge.saveRow(0, {"item": "Another tube", "sku": "TB-700"})["ok"] is True
+    refused = bridge.setUnique("sku", True)
+    assert refused["ok"] is False and "TB-700" in refused["error"]
+    assert bridge.addField("Barcode", "", "text", True)["ok"] is True
+    assert next(f for f in bridge.fields if f["name"] == "barcode")["unique"] is True
+
+    path = str(sandbox / "stock.jubadb")
+    bridge.closeDatabase()
+    connection = sqlite3.connect(path)
+    connection.execute("CREATE TABLE birds (name TEXT, seen INTEGER)")
+    connection.execute("INSERT INTO birds VALUES ('Wren', 3)")
+    connection.commit()
+    connection.close()
+    assert bridge.openDatabase("sqlite", path, {})["ok"] is True
+    bridge.selectTable("birds")
+    assert bridge.canEdit is False
+    assert bridge.rows.rowId(0) == 0
+    assert bridge.rows.flags(bridge.rows.index(0, 1)) & PySide6.QtCore.Qt.ItemFlag.ItemIsEditable == PySide6.QtCore.Qt.ItemFlag(0)
+    assert bridge.addRowNumber()["ok"] is True
+    assert bridge.canEdit is True and bridge.rows.rowId(0) == 1
+    assert bridge.saveRow(1, {"seen": 4})["ok"] is True

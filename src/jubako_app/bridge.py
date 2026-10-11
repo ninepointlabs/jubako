@@ -58,6 +58,8 @@ class RowsModel(QAbstractTableModel):
         self._names: list[str] = []
         self._rows: list[list[str]] = []
         self._raw: list[list[Any]] = []
+        #: False for a table with no row number: its cells cannot be typed into.
+        self.editable = True
         #: Called with (row_id, field_name, new_text) when a cell is edited in the grid.
         self.editor: Any = None
 
@@ -67,6 +69,7 @@ class RowsModel(QAbstractTableModel):
         self._kinds = [None] + [field["type"] for field in page["fields"]]
         self._names = ["id"] + [field["name"] for field in page["fields"]]
         self._raw = [list(row) for row in page["rows"]]
+        self.editable = bool(page.get("editable", True))
         self._rows = [
             [cell_text(value, self._kinds[i] if i < len(self._kinds) else None)
              for i, value in enumerate(row)]
@@ -76,7 +79,7 @@ class RowsModel(QAbstractTableModel):
 
     def flags(self, index: QModelIndex) -> Qt.ItemFlag:
         base = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
-        if index.isValid() and index.column() > 0:
+        if index.isValid() and index.column() > 0 and self.editable:
             base |= Qt.ItemFlag.ItemIsEditable
         return base
 
@@ -93,14 +96,14 @@ class RowsModel(QAbstractTableModel):
 
     @Slot(int, result=int)
     def rowId(self, row: int) -> int:  # noqa: N802
-        if 0 <= row < len(self._raw):
+        if 0 <= row < len(self._raw) and self._raw[row][0] is not None:
             return int(self._raw[row][0])
         return 0
 
     @Slot(int, result=int)
     def rowIndexOf(self, row_id: int) -> int:  # noqa: N802
         for index, row in enumerate(self._raw):
-            if int(row[0]) == int(row_id):
+            if row[0] is not None and int(row[0]) == int(row_id):
                 return index
         return -1
 
@@ -118,7 +121,7 @@ class RowsModel(QAbstractTableModel):
                 values[name] = bool(raw) if raw is not None else False
             else:
                 values[name] = "" if raw is None else str(raw)
-        return {"id": int(self._raw[row][0]), "values": values}
+        return {"id": int(self._raw[row][0] or 0), "values": values}
 
     def clear(self) -> None:
         self.load({"fields": [], "rows": []})
@@ -348,6 +351,38 @@ class Bridge(QObject):
 
     def _field_objects(self) -> list[Field]:
         return [Field(name=f["name"], type=f["type"], label=f["label"]) for f in self._fields]
+
+    @Property(bool, notify=tableChanged)
+    def canEdit(self) -> bool:  # noqa: N802
+        """False for a table made outside Jubako with no row number: it can be read, not edited."""
+        return self._rows.editable
+
+    @Slot(result="QVariantMap")
+    def addRowNumber(self) -> dict:  # noqa: N802
+        """Give the current table (made outside Jubako) a row number, so it can be edited."""
+        if self._storage is None or not self._current_table:
+            return {"ok": False, "error": "Pick a table first."}
+        try:
+            schema.add_row_number(self._storage, self._current_table)
+        except JubakoError as error:
+            return {"ok": False, "error": str(error)}
+        self._refresh_tables(select=self._current_table)
+        self.message.emit(f"{self._current_table} has a row number now, so its rows can be changed.")
+        return {"ok": True}
+
+    @Slot(str, bool, result="QVariantMap")
+    def setUnique(self, name: str, unique: bool) -> dict:  # noqa: N802
+        """Turn "no repeats" on or off for a field of the current table."""
+        if self._storage is None or not self._current_table:
+            return {"ok": False, "error": "Pick a table first."}
+        try:
+            schema.set_unique(self._storage, self._current_table, name, unique)
+        except JubakoError as error:
+            return {"ok": False, "error": str(error)}
+        self._refresh_tables(select=self._current_table)
+        label = next((f["label"] for f in self._fields if f["name"] == name), name)
+        self.message.emit(f"{label} can no longer repeat." if unique else f"{label} may repeat again.")
+        return {"ok": True}
 
     @Property(int, notify=tableChanged)
     def allRows(self) -> int:  # noqa: N802
@@ -835,13 +870,15 @@ class Bridge(QObject):
 
     # -- fields and tables ------------------------------------------------------
     @Slot(str, str, str, result="QVariantMap")
-    def addField(self, label: str, name: str, field_type: str) -> dict:  # noqa: N802
-        """Add a field to the current table. Rows already there get nothing in it."""
+    @Slot(str, str, str, bool, result="QVariantMap")
+    def addField(self, label: str, name: str, field_type: str, unique: bool = False) -> dict:  # noqa: N802
+        """Add a field to the current table. Rows already there get nothing in it. `unique`: no repeats."""
         if self._storage is None or not self._current_table:
             return {"ok": False, "error": "Pick a table first."}
         try:
             result = schema.add_field(
-                self._storage, self._current_table, label=label, name=name, field_type=field_type or "text"
+                self._storage, self._current_table, label=label, name=name, field_type=field_type or "text",
+                unique=unique,
             )
         except JubakoError as error:
             return {"ok": False, "error": str(error)}

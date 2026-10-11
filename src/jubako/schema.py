@@ -12,7 +12,7 @@ from typing import Any
 from .errors import JubakoError
 from .paths import DB_SUFFIXES, resolve_under_roots
 from .reports import FORM_KEY, REPORT_KEY, list_reports, load_form, load_report, normalise_spec
-from .fields import FIELD_TYPES, Field, slugify_name
+from .fields import FIELD_TYPES, Field, field_dict, slugify_name
 from .filters import filter_fields, rename_in_filter
 from .storage import SQLITE
 from .views import forget_views, retarget_views
@@ -20,9 +20,10 @@ from .storage.base import Storage, TableInfo
 
 
 def add_field(
-    storage: Storage, table: str, *, label: str = "", name: str = "", field_type: str = "text"
+    storage: Storage, table: str, *, label: str = "", name: str = "", field_type: str = "text",
+    unique: bool = False,
 ) -> dict[str, Any]:
-    """Add a field. The name inside comes from the label when not given."""
+    """Add a field. The name inside comes from the label when not given. `unique`: no repeats."""
     label = (label or "").strip()
     name = (name or "").strip()
     if not label and not name:
@@ -30,8 +31,21 @@ def add_field(
     name = name or slugify_name(label, fallback="field")
     if field_type not in FIELD_TYPES:
         raise JubakoError(f"Unknown field type {field_type!r}. Use: {', '.join(FIELD_TYPES)}.")
-    info = storage.add_field(table, Field(name=name, type=field_type, label=label or None))
+    info = storage.add_field(table, Field(name=name, type=field_type, label=label or None, unique=bool(unique)))
     return _field_result(info, table)
+
+
+def set_unique(storage: Storage, table: str, name: str, unique: bool = True) -> dict[str, Any]:
+    """Turn "no repeats" on or off for a field. Turning it on is refused while values repeat."""
+    return _field_result(storage.set_unique(table, name, bool(unique)), table)
+
+
+def add_row_number(storage: Storage, table: str) -> dict[str, Any]:
+    """Give a table made outside Jubako an automatic row number, so its rows can be edited."""
+    info = storage.add_row_number(table)
+    result = _field_result(info, table)
+    result["rows"] = info.row_count
+    return result
 
 
 def rename_field(
@@ -100,7 +114,7 @@ def delete_database_file(storage: Storage | None, path: str) -> dict[str, Any]:
 def _field_result(info: TableInfo, table: str) -> dict[str, Any]:
     return {
         "table": table,
-        "fields": [{"name": f.name, "type": f.type, "label": f.title} for f in info.fields],
+        "fields": [field_dict(f) for f in info.fields],
     }
 
 

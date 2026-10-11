@@ -13,10 +13,10 @@ and the window, with tests. Work order: 7a → 6 → 4 → 2 → 3 → 5 → 7b.
 
 ## 2. Primary keys
 
-- [ ] "No repeats" on a field (a unique field, like an email or a SKU). Kept in
+- [x] "No repeats" on a field (a unique field, like an email or a SKU). Kept in
       the field spec, enforced by a unique index on all three engines. Turning
       it on is refused while repeats exist, and says which values repeat.
-- [ ] A table made outside Jubako with no `id`: offer "Add a row number" so the
+- [x] A table made outside Jubako with no `id`: offer "Add a row number" so the
       grid and form can edit it.
 
 ## 3. Backstage (the File menu)

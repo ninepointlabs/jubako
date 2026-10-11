@@ -28,7 +28,7 @@ from typing import Any, Callable
 from jubako import __version__, catalog
 from jubako.errors import JubakoError
 from jubako.exporter import export_table
-from jubako.fields import FIELD_TYPES
+from jubako.fields import FIELD_TYPES, field_dict
 from jubako import schema, views
 from jubako.importer import import_spreadsheet, import_workbook, plan_import
 from jubako.reports import (
@@ -295,12 +295,16 @@ def tool_list_tables(arguments: dict[str, Any]) -> dict[str, Any]:
 def tool_describe_table(arguments: dict[str, Any]) -> dict[str, Any]:
     with _open(arguments) as storage:
         info = storage.describe_table(arguments["table"])
-    return {
+    result = {
         "table": info.name,
         "rows": info.row_count,
-        "fields": [{"name": f.name, "type": f.type, "label": f.title} for f in info.fields],
+        "fields": [field_dict(f) for f in info.fields],
         "field_types": list(FIELD_TYPES),
     }
+    if not info.has_row_id:
+        result["editable"] = False
+        result["note"] = "Made outside Jubako with no row number: rows can be read, not updated or deleted. Use add_row_number."
+    return result
 
 
 def tool_list_rows(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -321,10 +325,24 @@ def tool_add_field(arguments: dict[str, Any]) -> dict[str, Any]:
         result = schema.add_field(
             storage, arguments["table"], label=arguments.get("label", ""),
             name=arguments.get("name", ""), field_type=arguments.get("type", "text"),
+            unique=bool(arguments.get("unique", False)),
         )
     result["added"] = result["fields"][-1]["name"]
     result["note"] = "Rows already there have nothing in the new field."
     return result
+
+
+def tool_set_unique(arguments: dict[str, Any]) -> dict[str, Any]:
+    with _open(arguments) as storage:
+        result = schema.set_unique(storage, arguments["table"], arguments["field"], bool(arguments.get("unique", True)))
+    result["note"] = ("Blank values may still repeat." if arguments.get("unique", True)
+                      else "Values in this field may repeat again.")
+    return result
+
+
+def tool_add_row_number(arguments: dict[str, Any]) -> dict[str, Any]:
+    with _open(arguments) as storage:
+        return schema.add_row_number(storage, arguments["table"])
 
 
 def tool_add_row(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -811,11 +829,42 @@ TOOLS: list[dict[str, Any]] = [
                 "label": {"type": "string", "description": "What people see, like 'Moved'."},
                 "name": {"type": "string", "description": "Name inside: letters, numbers, underscores. Made from the label if left out."},
                 "type": {"type": "string", "enum": list(FIELD_TYPES), "default": "text"},
+                "unique": {"type": "boolean", "default": False, "description": "No two rows may have the same value (blanks may)."},
             },
             "required": ["table", "label"],
             "additionalProperties": False,
         },
         "handler": tool_add_field,
+    },
+    {
+        "name": "set_unique",
+        "description": (
+            "Make a field no-repeats (unique: true), like an email or a product code, or let it repeat again. "
+            "Refused, with the repeating values, while some already repeat. Not for yes/no fields."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                **_TARGET_PROPERTIES,
+                "table": {"type": "string"},
+                "field": {"type": "string"},
+                "unique": {"type": "boolean", "default": True},
+            },
+            "required": ["table", "field"],
+            "additionalProperties": False,
+        },
+        "handler": tool_set_unique,
+    },
+    {
+        "name": "add_row_number",
+        "description": "Give a table made outside Jubako (no `id`) an automatic row number, so rows can be updated and deleted.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {**_TARGET_PROPERTIES, "table": {"type": "string"}},
+            "required": ["table"],
+            "additionalProperties": False,
+        },
+        "handler": tool_add_row_number,
     },
     {
         "name": "rename_field",

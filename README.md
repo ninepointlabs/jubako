@@ -29,6 +29,7 @@ for exactly what works today.
 - **Type into a form.** One record at a time: Previous, Next, Save, New row.
 - **Change your mind.** Add a field, rename a field, delete a field, delete
   a table, or delete the whole database file. The destructive ones ask first.
+  Mark a field "no repeats", like an email or a product code.
 - **See only some rows.** "Show rows where Moved is not Yes" hides the rest
   in the grid and the form, and a printed report can use the same rule.
   Combine rules ("and" / "or"), compare numbers and dates ("is after
