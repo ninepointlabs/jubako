@@ -21,6 +21,7 @@ Safety rules, enforced here and in `jubako.paths`:
 
 from __future__ import annotations
 
+import difflib
 import json
 import sys
 from typing import Any, Callable
@@ -1117,6 +1118,13 @@ TOOL_SCHEMAS = [
     {k: v for k, v in tool.items() if k != "handler"} for tool in TOOLS
 ]
 
+ARGUMENTS: dict[str, list[str]] = {
+    tool["name"]: list(tool["inputSchema"]["properties"]) for tool in TOOLS
+}
+
+# Words an agent reaches for that do not look like the argument meant.
+_MEANT = {"where": "filter"}
+
 
 # --------------------------------------------------------------------------
 # JSON-RPC plumbing
@@ -1127,6 +1135,9 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     handler = HANDLERS.get(name)
     if handler is None:
         return _content({"error": f"There is no tool called {name!r}."}, is_error=True)
+    unknown = _unknown_arguments(name, arguments or {})
+    if unknown:
+        return _content({"error": unknown}, is_error=True)
     try:
         result = handler(arguments or {})
     except JubakoError as error:
@@ -1136,6 +1147,25 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     except Exception as error:  # noqa: BLE001 - never kill the server on one bad call
         return _content({"error": f"{type(error).__name__}: {error}"}, is_error=True)
     return _content(result)
+
+
+def _unknown_arguments(name: str, arguments: dict[str, Any]) -> str:
+    """Words for any argument the tool does not take, or "" when all are known.
+
+    A misspelt argument must not be dropped quietly: "where" for "filter"
+    would otherwise read (or change) every row.
+    """
+    known = ARGUMENTS[name]
+    unknown = [key for key in arguments if key not in known]
+    if not unknown:
+        return ""
+    parts = []
+    for key in unknown:
+        close = [_MEANT[key]] if _MEANT.get(key) in known else difflib.get_close_matches(key, known, n=1)
+        parts.append(f"{key!r} (did you mean {close[0]!r}?)" if close else repr(key))
+    what = "argument" if len(unknown) == 1 else "arguments"
+    return (f"{name} does not take the {what} {', '.join(parts)}. "
+            f"It takes: {', '.join(known) or 'nothing'}. Nothing was done.")
 
 
 def _content(payload: dict[str, Any], *, is_error: bool = False) -> dict[str, Any]:

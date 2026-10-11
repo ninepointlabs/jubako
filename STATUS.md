@@ -2,6 +2,15 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-11.**
 
+## 2026-10-11 — MCP refuses arguments a tool does not take
+
+Every tool's schema already said `additionalProperties: false`, but the
+server dropped unknown arguments quietly, so `list_rows` with `where`
+instead of `filter` returned every row as if filtered. Now `call_tool`
+refuses the call before anything runs. The error names the unknown argument,
+suggests the closest real one (and `filter` for `where`), and lists what the
+tool takes.
+
 ## 2026-10-11 — The Customer service template uses a lookup
 
 The Customer service template gains a `customers` table (Customer, no

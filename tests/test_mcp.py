@@ -92,6 +92,27 @@ def test_paths_outside_the_roots_come_back_as_a_clean_error(sandbox: Path):
     assert "error" in payload
 
 
+def test_an_argument_a_tool_does_not_take_is_refused_before_anything_happens(sandbox: Path, pets_csv: Path):
+    path = str(sandbox / "pets.jubadb")
+    call("create_database", title="Pets", path=path)
+    call("import_spreadsheet", path=path, file=str(pets_csv), table="pets")
+    before = call("list_rows", path=path, table="pets")[0]["rows"]
+
+    # "where" for "filter" would otherwise read every row as if it were filtered.
+    payload, failed = call("list_rows", path=path, table="pets", where={"field": "name", "op": "is", "value": "Rex"})
+    assert failed is True
+    assert "does not take the argument 'where' (did you mean 'filter'?)" in payload["error"]
+
+    payload, failed = call("update_rows", path=path, table="pets", filtr={"field": "name", "op": "is", "value": "Rex"},
+                           values={"name": "Max"}, every_row=True)
+    assert failed is True
+    assert "'filtr' (did you mean 'filter'?)" in payload["error"] and "Nothing was done" in payload["error"]
+    assert call("list_rows", path=path, table="pets")[0]["rows"] == before
+
+    payload, failed = call("list_tables", path=path, colour="red", size=2)
+    assert failed is True and "arguments 'colour', 'size'" in payload["error"]
+
+
 def test_overwrite_is_reported(sandbox: Path, pets_csv: Path):
     path = str(sandbox / "pets.jubadb")
     call("create_database", title="Pets", path=path)
