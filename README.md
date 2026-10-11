@@ -39,6 +39,8 @@ for exactly what works today.
   Combine rules ("and" / "or"), compare numbers and dates ("is after
   2024-01-01"), and tap a column heading to sort. Save what you keep using
   as a view, like "Still here", and it lives in the database file.
+- **Do something with those rows.** Change a field in all of them, delete
+  them, or see what they add up to (totals, averages, earliest and latest).
 - **Print a tidy report.** Pick the columns, a title, the page size. Columns
   shrink and wrap so the whole table fits the page width. Sort it, group it
   with a heading per group, total the number columns, add your own header

@@ -587,6 +587,52 @@ class Bridge(QObject):
         self._view_names[self._current_table] = ""
         return self.selectTable(self._current_table)
 
+    # -- the rows on screen, all at once ---------------------------------------
+    @Slot(str, str, bool, result="QVariantMap")
+    def changeMatching(self, field: str, value: str, blank: bool) -> dict:  # noqa: N802
+        """Set one field in every row the filter shows (every row when no filter is on). The window confirmed."""
+        if self._storage is None or not self._current_table:
+            return {"ok": False, "error": "Pick a table first."}
+        new_value = None if blank else _from_qml(value)
+        if new_value is None and not blank:
+            return {"ok": False, "error": "Type the new value, or tick “Make it blank”."}
+        try:
+            changed = self._storage.update_matching(self._current_table, self._filter, {field: new_value}, every_row=True)
+        except (ValueError, TypeError) as error:
+            return {"ok": False, "error": _value_words(error, self._fields, {field: new_value})}
+        except JubakoError as error:
+            return {"ok": False, "error": str(error)}
+        self._refresh_tables(select=self._current_table)
+        label = next((f["label"] for f in self._fields if f["name"] == field), field)
+        self.message.emit(f"Changed {label} in {changed} row{'s' if changed != 1 else ''}.")
+        return {"ok": True, "changed": changed}
+
+    @Slot(result="QVariantMap")
+    def deleteMatching(self) -> dict:  # noqa: N802
+        """Delete every row the filter shows (every row when no filter is on). The window confirmed."""
+        if self._storage is None or not self._current_table:
+            return {"ok": False, "error": "Pick a table first."}
+        try:
+            deleted = self._storage.delete_matching(self._current_table, self._filter, every_row=True)
+        except JubakoError as error:
+            return {"ok": False, "error": str(error)}
+        self._refresh_tables(select=self._current_table)
+        self.message.emit(f"Deleted {deleted} row{'s' if deleted != 1 else ''}.")
+        return {"ok": True, "deleted": deleted}
+
+    @Slot(result="QVariantMap")
+    def summary(self) -> dict:
+        """Counts and totals for the rows the filter shows: what each field adds up to."""
+        if self._storage is None or not self._current_table:
+            return {"ok": False, "error": "Pick a table first."}
+        try:
+            result = self._storage.summarize(self._current_table, self._filter)
+        except JubakoError as error:
+            return {"ok": False, "error": str(error)}
+        result["ok"] = True
+        result.pop("filter", None)
+        return result
+
     @Slot(str, result="QVariantMap")
     def sortBy(self, field: str) -> dict:  # noqa: N802
         """A tap on a column heading: sort by it going up, then down, then back to unsorted."""

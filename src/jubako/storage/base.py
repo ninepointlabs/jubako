@@ -620,6 +620,100 @@ class Storage(ABC):
         self.commit()
         return bool(getattr(cursor, "rowcount", 0))
 
+    # -- many rows at once -------------------------------------------------
+    def update_matching(
+        self, table: str, where: dict[str, Any] | None, values: dict[str, Any], *, every_row: bool = False
+    ) -> int:
+        """Set fields in every row the filter finds. With no filter, `every_row` must say so.
+
+        Returns how many rows were changed.
+        """
+        info = self.describe_table(table)
+        known = {f.name: f for f in info.fields}
+        unknown = [name for name in values if name not in known]
+        if unknown:
+            raise BadName(f"This table has no field called {unknown[0]!r}.")
+        if not values:
+            raise JubakoError("Say which field to change, and to what.")
+        filter_spec = normalise_filter(info.fields, where)
+        if filter_spec is None and not every_row:
+            raise JubakoError("No filter is on, so this would change every row. Say so to go ahead.")
+        names = list(values)
+        params = []
+        for name in names:
+            try:
+                params.append(coerce(values[name], known[name].type))
+            except (ValueError, TypeError):
+                want = {"integer": "a whole number", "real": "a number", "date": "a date like 2024-01-31",
+                        "boolean": "yes or no"}.get(known[name].type, "words")
+                raise JubakoError(f"{known[name].title} needs {want}. “{values[name]}” does not fit.") from None
+        matching = self.count_rows(table, where=filter_spec) if filter_spec else info.row_count
+        clause, where_params = where_clause(self, filter_spec, first_index=len(names))
+        unique_values = {name: value for name, value in zip(names, params) if known[name].unique and value is not None}
+        if unique_values:
+            if matching > 1:
+                field = known[next(iter(unique_values))]
+                raise JubakoError(f"{field.title} cannot repeat, so it cannot be set to one value in {matching} rows.")
+            if matching == 1 and info.has_row_id:
+                target = self.list_rows(table, limit=1, where=filter_spec)["rows"][0][0]
+                self._check_repeats(table, known, unique_values, row_id=int(target))
+        assignments = ", ".join(f"{self.quote(name)} = {self.placeholder(i)}" for i, name in enumerate(names))
+        cursor = self._write(
+            f"UPDATE {self.quote(table)} SET {assignments}" + (f" WHERE {clause}" if clause else ""),
+            params + where_params,
+        )
+        self.commit()
+        changed = getattr(cursor, "rowcount", -1)
+        return matching if changed is None or changed < 0 else int(changed)
+
+    def delete_matching(self, table: str, where: dict[str, Any] | None, *, every_row: bool = False) -> int:
+        """Delete every row the filter finds. With no filter, `every_row` must say so. Returns how many."""
+        info = self.describe_table(table)
+        filter_spec = normalise_filter(info.fields, where)
+        if filter_spec is None and not every_row:
+            raise JubakoError("No filter is on, so this would delete every row. Say so to go ahead.")
+        matching = self.count_rows(table, where=filter_spec) if filter_spec else info.row_count
+        clause, params = where_clause(self, filter_spec)
+        cursor = self.execute(f"DELETE FROM {self.quote(table)}" + (f" WHERE {clause}" if clause else ""), params)
+        self.commit()
+        deleted = getattr(cursor, "rowcount", -1)
+        return matching if deleted is None or deleted < 0 else int(deleted)
+
+    def summarize(self, table: str, where: dict[str, Any] | None = None) -> dict[str, Any]:
+        """How many rows the filter finds, and for each field: how many are filled in, and
+        for numbers the total, average, lowest and highest; for dates the earliest and latest."""
+        info = self.describe_table(table)
+        filter_spec = normalise_filter(info.fields, where)
+        clause, params = where_clause(self, filter_spec)
+        tail = f" FROM {self.quote(table)}" + (f" WHERE {clause}" if clause else "")
+        parts = ["COUNT(*)"]
+        for field in info.fields:
+            column = self.quote(field.name)
+            parts.append(f"COUNT({column})")
+            if field.type in ("integer", "real"):
+                parts += [f"SUM({column})", f"AVG({column})", f"MIN({column})", f"MAX({column})"]
+            elif field.type == "date":
+                parts += [f"MIN({column})", f"MAX({column})"]
+            elif field.type == "boolean":
+                parts.append(f"SUM(CASE WHEN {column} THEN 1 ELSE 0 END)")
+        row = self.query(f"SELECT {', '.join(parts)}{tail}", params)[0]
+        values = iter(row)
+        out = {"table": table, "rows": int(next(values) or 0), "filter": filter_spec, "fields": []}
+        for field in info.fields:
+            item: dict[str, Any] = {"name": field.name, "label": field.title, "type": field.type,
+                                    "filled": int(next(values) or 0)}
+            if field.type in ("integer", "real"):
+                total, average, low, high = (next(values) for _ in range(4))
+                item.update(total=_number(total, 10), average=_number(average, 2), lowest=_number(low, 10),
+                            highest=_number(high, 10))
+            elif field.type == "date":
+                low, high = next(values), next(values)
+                item.update(earliest=to_jsonable(low), latest=to_jsonable(high))
+            elif field.type == "boolean":
+                item["yes"] = int(next(values) or 0)
+            out["fields"].append(item)
+        return out
+
     def delete_row(self, table: str, row_id: int) -> bool:
         if not self.describe_table(table).has_row_id:
             raise JubakoError(NO_ROW_ID)
@@ -642,3 +736,15 @@ def _value_text(value: Any) -> str:
         return str(int(value))
     return str(value)
 
+
+def _number(value: Any, digits: int | None = None) -> Any:
+    """A total or average as a plain number: whole when it is whole, rounded when asked."""
+    if value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return to_jsonable(value)
+    if digits is not None:
+        number = round(number, digits)
+    return int(number) if number.is_integer() else number

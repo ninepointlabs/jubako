@@ -61,6 +61,6 @@ and the window, with tests. Work order: 7a → 6 → 4 → 2 → 3 → 5 → 7b.
 
 ### 7b. Doing things with the rows you found
 
-- [ ] Change a field in every matching row ("set Moved to Yes"), with a confirm.
-- [ ] Delete every matching row, with a confirm that says how many.
-- [ ] Summary of the matching rows: count, and sum / average of a number field.
+- [x] Change a field in every matching row ("set Moved to Yes"), with a confirm.
+- [x] Delete every matching row, with a confirm that says how many.
+- [x] Summary of the matching rows: count, and sum / average of a number field.

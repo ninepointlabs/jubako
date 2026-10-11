@@ -203,3 +203,51 @@ def test_sort_words():
         "Age, highest first, then Name, A to Z")
     assert sort_words(fields, [{"field": "born", "descending": True}]) == "Born, newest first"
     assert sort_words(fields, []) == ""
+
+
+# -- doing things with the rows a filter finds --------------------------------------
+
+def test_change_every_matching_row(pets):
+    changed = pets.update_matching("pets", {"field": "age", "op": "more_than", "value": 3}, {"moved": "no"})
+    assert changed == 2
+    assert names(pets.list_rows("pets", where={"field": "moved", "op": "is", "value": "no"})) == ["Rex", "Shadow"]
+    assert pets.update_matching("pets", {"field": "name", "op": "is", "value": "Pip"}, {"age": None}) == 1
+    with pytest.raises(JubakoError, match="every row"):
+        pets.update_matching("pets", None, {"moved": "yes"})
+    assert pets.update_matching("pets", None, {"moved": "yes"}, every_row=True) == 4
+    with pytest.raises(JubakoError, match="age needs a whole number. “old” does not fit"):
+        pets.update_matching("pets", None, {"age": "old"}, every_row=True)
+
+
+def test_change_matching_rows_respects_no_repeats(pets):
+    schema.set_unique(pets, "pets", "name", True)
+    with pytest.raises(JubakoError, match="cannot be set to one value in 2 rows"):
+        pets.update_matching("pets", {"field": "moved", "op": "is", "value": "yes"}, {"name": "Twin"})
+    with pytest.raises(JubakoError, match="“Rex” is already in another row"):
+        pets.update_matching("pets", {"field": "name", "op": "is", "value": "Pip"}, {"name": "Rex"})
+    assert pets.update_matching("pets", {"field": "name", "op": "is", "value": "Pip"}, {"name": "Pippa"}) == 1
+
+
+def test_delete_every_matching_row(pets):
+    with pytest.raises(JubakoError, match="every row"):
+        pets.delete_matching("pets", None)
+    assert pets.delete_matching("pets", {"match": "any", "rules": [
+        {"field": "age", "op": "empty"}, {"field": "name", "op": "is", "value": "Milo"}]}) == 2
+    assert names(pets.list_rows("pets")) == ["Rex", "Shadow"]
+    assert pets.delete_matching("pets", {"field": "name", "op": "is", "value": "Nobody"}) == 0
+    assert pets.delete_matching("pets", None, every_row=True) == 2
+
+
+def test_summarize_the_matching_rows(pets):
+    summary = pets.summarize("pets")
+    assert summary["rows"] == 4
+    by_name = {item["name"]: item for item in summary["fields"]}
+    assert by_name["age"] == {"name": "age", "label": "age", "type": "integer", "filled": 3,
+                              "total": 17, "average": 5.67, "lowest": 2, "highest": 11}
+    assert by_name["adopted_on"]["earliest"] == "2014-11-30" and by_name["adopted_on"]["latest"] == "2024-01-05"
+    assert by_name["moved"]["yes"] == 2
+    assert by_name["weight_kg"]["total"] == 23.85
+    found = pets.summarize("pets", {"field": "moved", "op": "is", "value": "yes"})
+    assert found["rows"] == 2 and {i["name"]: i for i in found["fields"]}["age"]["total"] == 15
+    empty = pets.summarize("pets", {"field": "name", "op": "is", "value": "Nobody"})
+    assert empty["rows"] == 0 and {i["name"]: i for i in empty["fields"]}["age"]["total"] is None

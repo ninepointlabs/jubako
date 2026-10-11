@@ -369,6 +369,28 @@ def tool_set_unique(arguments: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def tool_update_rows(arguments: dict[str, Any]) -> dict[str, Any]:
+    with _open(arguments) as storage:
+        changed = storage.update_matching(
+            arguments["table"], arguments.get("filter"), dict(arguments.get("values") or {}),
+            every_row=bool(arguments.get("every_row", False)),
+        )
+    return {"updated": changed, "table": arguments["table"]}
+
+
+def tool_delete_rows(arguments: dict[str, Any]) -> dict[str, Any]:
+    with _open(arguments) as storage:
+        deleted = storage.delete_matching(
+            arguments["table"], arguments.get("filter"), every_row=bool(arguments.get("every_row", False)),
+        )
+    return {"deleted": deleted, "table": arguments["table"], "note": "This cannot be undone."}
+
+
+def tool_summarize_rows(arguments: dict[str, Any]) -> dict[str, Any]:
+    with _open(arguments) as storage:
+        return storage.summarize(arguments["table"], arguments.get("filter"))
+
+
 def tool_add_row_number(arguments: dict[str, Any]) -> dict[str, Any]:
     with _open(arguments) as storage:
         return schema.add_row_number(storage, arguments["table"])
@@ -922,6 +944,59 @@ TOOLS: list[dict[str, Any]] = [
             "additionalProperties": False,
         },
         "handler": tool_set_unique,
+    },
+    {
+        "name": "update_rows",
+        "description": (
+            "Set fields in every row a filter finds, like 'set Moved to Yes where Town is Bend'. "
+            "Without a filter it is refused unless every_row is true. Returns how many rows changed."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                **_TARGET_PROPERTIES,
+                "table": {"type": "string"},
+                "filter": _FILTER_SCHEMA,
+                "values": {"type": "object", "description": "Field name to its new value (null for blank)."},
+                "every_row": {"type": "boolean", "default": False, "description": "Needed to change every row (no filter)."},
+            },
+            "required": ["table", "values"],
+            "additionalProperties": False,
+        },
+        "handler": tool_update_rows,
+    },
+    {
+        "name": "delete_rows",
+        "description": (
+            "Delete every row a filter finds. Cannot be undone. Without a filter it is refused unless "
+            "every_row is true. Count first with summarize_rows if unsure."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                **_TARGET_PROPERTIES,
+                "table": {"type": "string"},
+                "filter": _FILTER_SCHEMA,
+                "every_row": {"type": "boolean", "default": False, "description": "Needed to delete every row (no filter)."},
+            },
+            "required": ["table"],
+            "additionalProperties": False,
+        },
+        "handler": tool_delete_rows,
+    },
+    {
+        "name": "summarize_rows",
+        "description": (
+            "How many rows a filter finds (or the whole table), and per field how many are filled in; "
+            "numbers get total, average, lowest, highest; dates earliest and latest; yes/no how many Yes."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {**_TARGET_PROPERTIES, "table": {"type": "string"}, "filter": _FILTER_SCHEMA},
+            "required": ["table"],
+            "additionalProperties": False,
+        },
+        "handler": tool_summarize_rows,
     },
     {
         "name": "add_row_number",

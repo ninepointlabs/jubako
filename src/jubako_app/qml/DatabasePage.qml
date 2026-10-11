@@ -23,6 +23,7 @@ Page {
 
     FieldsDialog { id: fieldsDialog }
     FormDesignDialog { id: formDesignDialog }
+    MatchingRows { id: matchingRows }
     AddFieldDialog { id: addFieldDialog }
     RenameFieldDialog { id: renameFieldDialog }
 
@@ -423,9 +424,30 @@ Page {
                             id: moreMenu
                             x: parent.width - width     // at the right edge: open leftwards
                             y: parent.height
+                            width: 340
                             MenuItem { text: "Add field\u2026"; objectName: "menuAddField"; onTriggered: addFieldDialog.openFor(false) }
                             MenuItem { text: "Fields: add, rename or delete\u2026"; onTriggered: fieldsDialog.openFor() }
                             MenuItem { text: "Arrange the form\u2026"; objectName: "menuArrangeForm"; onTriggered: formDesignDialog.openFor() }
+                            MenuSeparator {}
+                            // The rows on screen, all at once.
+                            MenuItem {
+                                text: (Bridge.filterWords !== "" ? "These " + Bridge.totalRows + " rows" : "All " + Bridge.totalRows + " rows") + ": what they add up to\u2026"
+                                objectName: "menuSummary"
+                                enabled: Bridge.totalRows > 0
+                                onTriggered: matchingRows.openSummary()
+                            }
+                            MenuItem {
+                                text: (Bridge.filterWords !== "" ? "These " + Bridge.totalRows + " rows" : "All " + Bridge.totalRows + " rows") + ": change a field\u2026"
+                                objectName: "menuChangeRows"
+                                enabled: Bridge.totalRows > 0
+                                onTriggered: matchingRows.openChange()
+                            }
+                            MenuItem {
+                                text: (Bridge.filterWords !== "" ? "These " + Bridge.totalRows + " rows" : "All " + Bridge.totalRows + " rows") + ": delete them\u2026"
+                                objectName: "menuDeleteRows"
+                                enabled: Bridge.totalRows > 0
+                                onTriggered: matchingRows.openDelete()
+                            }
                             MenuSeparator {}
                             MenuItem { text: "Delete this table\u2026"; onTriggered: confirmDeleteTable.ask() }
                         }

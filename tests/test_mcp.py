@@ -370,3 +370,18 @@ def test_rename_and_copy_database_tools(sandbox, pets_csv):
     copied = HANDLERS["copy_database"]({"path": db, "file": str(sandbox / "copy.jubadb")})
     assert copied["replaced_existing_file"] is False
     assert HANDLERS["list_rows"]({"path": copied["file"], "table": "pets"})["total"] == 4
+
+
+def test_bulk_row_tools(sandbox, pets_csv):
+    from jubako_mcp.server import HANDLERS
+
+    db = str(sandbox / "bulk.jubadb")
+    HANDLERS["create_database"]({"title": "B", "path": db})
+    HANDLERS["import_spreadsheet"]({"path": db, "file": str(pets_csv)})
+    young = {"field": "age", "op": "less_than", "value": 5}
+    assert HANDLERS["summarize_rows"]({"path": db, "table": "pets", "filter": young})["rows"] == 2
+    assert HANDLERS["update_rows"]({"path": db, "table": "pets", "filter": young, "values": {"is_good": False}})["updated"] == 2
+    with pytest.raises(Exception, match="every row"):
+        HANDLERS["delete_rows"]({"path": db, "table": "pets"})
+    assert HANDLERS["delete_rows"]({"path": db, "table": "pets", "filter": young})["deleted"] == 2
+    assert HANDLERS["list_rows"]({"path": db, "table": "pets"})["total"] == 2

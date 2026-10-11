@@ -2,7 +2,9 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-10.**
 
-## 2026-10-10 — Access features, part 3: the Database menu and forms
+## 2026-10-10 — Access features, part 3: the Database menu, forms, rows in bulk
+
+`TODO.md` items 1–7 are all ticked now.
 
 **3. Backstage.** The header's "Open another" became **Database…**: New
 database, New from a template, Open another, Open a recent one, Save a
@@ -25,15 +27,29 @@ shows its title next to "Row 3 of 7". **Duplicate** starts a new row from
 the one on screen; no-repeats fields start blank, with a note. MCP
 `create_form` takes `hidden`; `get_form` returns `order` and `hidden`.
 
+**7b. The rows on screen, all at once.** In More…, for the rows the filter
+shows ("These 12 rows") or every row ("All 40 rows"):
+- **change a field** (yes / no picker for yes/no fields, "Make it blank
+  instead"), with the count on the button;
+- **delete them**, saying how many and, with no filter, that it is every row;
+- **what they add up to**: per field how many are filled in; numbers total,
+  average, lowest, highest; dates earliest and latest; yes/no how many Yes.
+Core `update_matching` / `delete_matching` refuse "no filter" unless told
+`every_row`; setting a no-repeats field is refused for more than one row,
+and checked against the other rows for one. `summarize`. CLI `jubako set`,
+`delete-rows` (both need `--all` without a filter), `summary`. MCP
+`update_rows`, `delete_rows`, `summarize_rows` (36 tools now).
+
 **Fixed on the way.** `apply_template` failed halfway when a view by the
 same name was left over from an old table (the low-level
 `Storage.drop_table` leaves views behind; `schema.drop_table` does not). A
 template's views now replace such leftovers.
 
-Verified live again on PostgreSQL 17 and MariaDB 11: hidden form fields,
-renaming; save a copy refused for a server.
+Verified live again on PostgreSQL 17 and MariaDB 11: summaries (including
+yes counts), change and delete matching rows, no-repeats refused in bulk,
+hidden form fields, renaming; save a copy refused for a server.
 
-217 tests pass.
+223 tests pass.
 
 ## 2026-10-10 — Access features, part 2: templates and keys
 

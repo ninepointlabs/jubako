@@ -1047,3 +1047,18 @@ def test_the_form_duplicates_a_record_without_its_no_repeats_values(app, bridge,
     finally:
         engine.deleteLater()
         app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+def test_change_delete_and_sum_the_rows_on_screen_from_the_bridge(pets):
+    assert pets.setFilter("age", "more_than", "3")["ok"] is True
+    assert pets.totalRows == 2
+    assert pets.summary()["rows"] == 2
+    assert pets.changeMatching("is_good", "yes", False) == {"ok": True, "changed": 2}
+    assert pets.changeMatching("weight_kg", "", True)["changed"] == 2
+    assert pets.changeMatching("weight_kg", "", False)["ok"] is False      # neither a value nor blank
+    refused = pets.changeMatching("age", "lots", False)
+    assert refused["ok"] is False and "whole number" in refused["error"]
+    assert pets.deleteMatching() == {"ok": True, "deleted": 2}
+    assert pets.totalRows == 0 and pets.allRows == 2
+    pets.clearFilter()
+    assert pets.summary()["rows"] == 2

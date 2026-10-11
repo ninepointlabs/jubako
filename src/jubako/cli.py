@@ -75,6 +75,42 @@ def cmd_add_row_number(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_set(args: argparse.Namespace) -> int:
+    value = None if args.blank else args.value
+    if value is None and not args.blank:
+        raise JubakoError("Give the new value, or --blank.")
+    with open_database(backend="sqlite", path=args.path) as storage:
+        changed = storage.update_matching(args.table, _filter_from_args(args), {args.field: value}, every_row=args.all)
+    print(f"Changed {args.field} in {changed} row{'s' if changed != 1 else ''}.")
+    return 0
+
+
+def cmd_delete_rows(args: argparse.Namespace) -> int:
+    with open_database(backend="sqlite", path=args.path) as storage:
+        deleted = storage.delete_matching(args.table, _filter_from_args(args), every_row=args.all)
+    print(f"Deleted {deleted} row{'s' if deleted != 1 else ''}.")
+    return 0
+
+
+def cmd_summary(args: argparse.Namespace) -> int:
+    with open_database(backend="sqlite", path=args.path) as storage:
+        result = storage.summarize(args.table, _filter_from_args(args))
+    if args.json:
+        print(json.dumps(result, indent=2, default=str))
+        return 0
+    print(f"{result['rows']} rows")
+    for item in result["fields"]:
+        extra = ""
+        if "total" in item:
+            extra = f"  total {item['total']}, average {item['average']}, lowest {item['lowest']}, highest {item['highest']}"
+        elif "earliest" in item:
+            extra = f"  earliest {item['earliest']}, latest {item['latest']}"
+        elif "yes" in item:
+            extra = f"  {item['yes']} yes"
+        print(f"  {item['label']}: {item['filled']} filled in{extra}")
+    return 0
+
+
 def cmd_copy(args: argparse.Namespace) -> int:
     with open_database(backend="sqlite", path=args.path) as storage:
         result = schema.save_copy(storage, args.out, overwrite=args.overwrite)
@@ -278,6 +314,30 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub = subs.add_parser("templates", help="The ready-made databases you can start from")
     sub.set_defaults(func=cmd_templates)
+
+    sub = subs.add_parser("set", help="Set a field in every row a filter finds")
+    sub.add_argument("path")
+    sub.add_argument("table")
+    sub.add_argument("field")
+    sub.add_argument("value", nargs="?")
+    sub.add_argument("--blank", action="store_true", help="Make the field blank")
+    _filter_arguments(sub)
+    sub.add_argument("--all", action="store_true", help="No filter: change every row")
+    sub.set_defaults(func=cmd_set)
+
+    sub = subs.add_parser("delete-rows", help="Delete every row a filter finds (cannot be undone)")
+    sub.add_argument("path")
+    sub.add_argument("table")
+    _filter_arguments(sub)
+    sub.add_argument("--all", action="store_true", help="No filter: delete every row")
+    sub.set_defaults(func=cmd_delete_rows)
+
+    sub = subs.add_parser("summary", help="Count and total the rows a filter finds")
+    sub.add_argument("path")
+    sub.add_argument("table")
+    _filter_arguments(sub)
+    sub.add_argument("--json", action="store_true")
+    sub.set_defaults(func=cmd_summary)
 
     sub = subs.add_parser("copy", help="Save a copy of a database file (safe while it is open)")
     sub.add_argument("path")
