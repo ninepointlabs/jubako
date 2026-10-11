@@ -369,7 +369,7 @@ class Bridge(QObject):
             if isinstance(rule.get("value"), bool):
                 rule["value"] = "yes" if rule["value"] else "no"
             elif rule.get("value") is not None:
-                rule["value"] = str(rule["value"])
+                rule["value"] = cell_text(rule["value"], None)  # 3000, not 3000.0
             out.append(rule)
         return out
 

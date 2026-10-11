@@ -251,3 +251,12 @@ def test_summarize_the_matching_rows(pets):
     assert found["rows"] == 2 and {i["name"]: i for i in found["fields"]}["age"]["total"] == 15
     empty = pets.summarize("pets", {"field": "name", "op": "is", "value": "Nobody"})
     assert empty["rows"] == 0 and {i["name"]: i for i in empty["fields"]}["age"]["total"] is None
+
+
+def test_a_whole_number_on_a_decimal_field_reads_without_point_zero(pets):
+    fields = pets.describe_table("pets").fields
+    spec = normalise_filter(fields, {"field": "weight_kg", "op": "more_than", "value": "3000"})
+    assert spec["value"] == 3000.0
+    assert filter_words(fields, spec) == "weight_kg is more than 3000"
+    halves = normalise_filter(fields, {"field": "weight_kg", "op": "at_least", "value": "4.5"})
+    assert filter_words(fields, halves) == "weight_kg is at least 4.5"

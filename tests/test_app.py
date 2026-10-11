@@ -1062,3 +1062,10 @@ def test_change_delete_and_sum_the_rows_on_screen_from_the_bridge(pets):
     assert pets.totalRows == 0 and pets.allRows == 2
     pets.clearFilter()
     assert pets.summary()["rows"] == 2
+
+
+def test_the_filter_bar_gets_whole_numbers_back_without_point_zero(pets):
+    assert pets.setFilterRules("all", [{"field": "weight_kg", "op": "more_than", "value": "5"},
+                                       {"field": "weight_kg", "op": "less_than", "value": "12.5"}])["ok"] is True
+    assert [rule["value"] for rule in pets.filterRules] == ["5", "12.5"]
+    assert pets.filterWords == "weight_kg is more than 5 and weight_kg is less than 12.5"

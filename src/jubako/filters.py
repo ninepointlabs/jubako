@@ -255,6 +255,8 @@ def _rule_words(fields: list[Field], rule: dict[str, Any]) -> str:
         value = rule["value"]
         if kind == BOOLEAN:
             value = "Yes" if value else "No"
+        elif isinstance(value, float) and value.is_integer():
+            value = int(value)  # "more than 3000", not "3000.0"
         return f"{label} {op_words(op, kind)} {value}"
     return f"{label} {op_words(op, kind)}"
 
