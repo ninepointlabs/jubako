@@ -14,7 +14,7 @@ optdepends=(
 )
 makedepends=('python-build' 'python-installer' 'python-hatchling')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('SKIP')
+sha256sums=('eeb280e4db0d5a698194b9dc714349d6cd17ed17566a2d916289006edfb507c7')
 
 build() {
   cd "$pkgname-$pkgver"
