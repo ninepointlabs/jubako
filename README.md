@@ -9,7 +9,7 @@ no server to set up, no account to make.
 A *jūbako* is the stacked Japanese lunch box: one box, several tiers. Jubako
 is one file with several tables.
 
-![The orders table of a demo bike-shop database in the Jubako grid, Tokyo Night theme](docs/screenshots/grid.webp)
+![The orders table of a demo bike-shop database in the Jubako grid](docs/screenshots/grid.webp)
 
 **Status: usable, still young.** Make a database, import a CSV or Excel file,
 browse and edit rows in a grid or one at a time in a form, export to CSV,
@@ -51,19 +51,19 @@ for exactly what works today.
 
 <table>
   <tr>
-    <td><img src="docs/screenshots/view.webp" alt="A saved view showing only bike sales"></td>
-    <td><img src="docs/screenshots/form.webp" alt="One order in the form view"></td>
+    <td><img src="docs/screenshots/view.webp" alt="Two rules, bikes that were delivered, sorted by total"></td>
+    <td><img src="docs/screenshots/form.webp" alt="One order in an arranged form"></td>
   </tr>
   <tr>
-    <td align="center">A saved view: 40 of 242 orders</td>
-    <td align="center">One record at a time in the form</td>
+    <td align="center">Two rules and a sort, saved as a view: 32 of 242 orders</td>
+    <td align="center">One record at a time, in a form you arrange</td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/report.webp" alt="The report designer with a landscape preview"></td>
+    <td><img src="docs/screenshots/report.webp" alt="The report designer: bike sales grouped by rep, with a total per rep"></td>
     <td><img src="docs/screenshots/light.webp" alt="The grid in a light Omarchy theme"></td>
   </tr>
   <tr>
-    <td align="center">The report designer: what you see is what prints</td>
+    <td align="center">Grouped, totalled, and what you see is what prints</td>
     <td align="center">It follows your Omarchy theme, light or dark</td>
   </tr>
 </table>

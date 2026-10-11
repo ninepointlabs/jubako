@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Jubako 重箱 · Microsoft Access, without the hard parts</title>
-<meta name="description" content="A simple desktop database for Omarchy and Linux. Make a database, put a spreadsheet in it, look at your rows, print a tidy report. No SQL, no server.">
+<meta name="description" content="A simple desktop database for Omarchy and Linux. Make a database or start from a template, put a spreadsheet in it, find, sort and change your rows, print a tidy report. No SQL, no server.">
 <link rel="canonical" href="https://jubako.ninepointlabs.com/">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://jubako.ninepointlabs.com/">
@@ -17,7 +17,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@700;900&display=swap&text=%E9%87%8D%E7%AE%B1%E3%81%B2%E3%81%A8%E3%81%A4%E3%81%AE%E3%81%AB%E3%80%81%E3%81%99%E3%81%B9%E3%81%A6%E3%82%92%E3%80%82%E3%81%98%E3%82%85%E3%81%86%E3%81%B0%E3%81%93%E4%B8%80%E4%BA%8C%E4%B8%89%E5%9B%9B%E4%BA%94%E5%85%AD%E4%B8%83%E5%85%AB%E4%B9%9D" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@700;900&display=swap&text=%E9%87%8D%E7%AE%B1%E3%81%B2%E3%81%A8%E3%81%A4%E3%81%AE%E3%81%AB%E3%80%81%E3%81%99%E3%81%B9%E3%81%A6%E3%82%92%E3%80%82%E3%81%98%E3%82%85%E3%81%86%E3%81%B0%E3%81%93%E4%B8%80%E4%BA%8C%E4%B8%89%E5%9B%9B%E4%BA%94%E5%85%AD%E4%B8%83%E5%85%AB%E4%B9%9D%E5%8D%81" rel="stylesheet">
 <link rel="stylesheet" href="site.css">
 </head>
 <body>
@@ -60,8 +60,8 @@
   <section class="hook">
     <h2 class="chaos">Spreadsheet chaos?</h2>
     <p><code>orders_FINAL_v7.xlsx</code> or <code>orders (2).csv</code>? <b>Which one is right?</b></p>
-    <p class="calm">Put them in one box. Make a database, put a spreadsheet in it, look at your rows, print a tidy
-      list. No SQL to learn, no server to set up, no account to make.</p>
+    <p class="calm">Put them in one box. Make a database (or start from a template), put a spreadsheet in it, find
+      the rows you need, print a tidy list. No SQL to learn, no server to set up, no account to make.</p>
   </section>
 
   <section class="video">
@@ -80,49 +80,64 @@
       </article>
       <article class="card">
         <h3><span class="seal">二</span><span>One box. <em>Many tiers.</em></span></h3>
-        <p>A database is one <code>.jubadb</code> file: copy it, back it up, email it. It's ordinary SQLite, so
-          nothing is locked away. Already run PostgreSQL or MySQL? Point Jubako there instead.</p>
+        <p>A database is one <code>.jubadb</code> file: copy it, back it up, email it. Save a copy from the
+          Database menu, even while it's open. It's ordinary SQLite, so nothing is locked away. Already run
+          PostgreSQL or MySQL? Point Jubako there instead.</p>
       </article>
       <article class="card">
-        <h3><span class="seal">四</span><span>Change <em>your mind</em></span></h3>
-        <p>Add a field, rename one, delete one. Delete a table or the whole file. The destructive ones ask first.</p>
+        <h3><span class="seal">三</span><span>Start from a <em>template</em></span></h3>
+        <p>Contacts, Inventory, Projects and tasks, Customer service, Home collection. Each comes with its tables,
+          saved views and reports, and a few made-up example rows if you want them.</p>
       </article>
     </div>
 
     <article class="shot">
       <figure><img src="screenshots/grid.webp" alt="The orders table of a demo bike-shop database in the Jubako grid" loading="lazy"></figure>
       <div>
-        <h3><span class="seal">三</span><span>Browse. <em>Edit.</em></span></h3>
-        <p>A grid of everything in a table. Tap a row to pick it, double-tap a cell to change it.</p>
+        <h3><span class="seal">四</span><span>Browse. Sort. <em>Edit.</em></span></h3>
+        <p>A grid of everything in a table. Tap a heading to sort by it, double-tap a cell to change it. Add,
+          rename or delete a field; mark one “no repeats”, like an email or a product code. The destructive
+          ones ask first.</p>
       </div>
     </article>
     <article class="shot flip">
-      <figure><img src="screenshots/view.webp" alt="A saved view showing only bike sales" loading="lazy"></figure>
+      <figure><img src="screenshots/view.webp" alt="Two rules, bikes that were delivered, sorted by total and saved as a view" loading="lazy"></figure>
       <div>
-        <h3><span class="seal">五</span><span>Save it as a <em>view</em></span></h3>
-        <p>“Show rows where Category contains bike” hides the rest. Save a rule you keep using, like “Still here”,
-          and it lives inside the database file.</p>
+        <h3><span class="seal">五</span><span>Ask your rows a <em>question</em></span></h3>
+        <p>“Show rows where Category contains bike and Status is Delivered” hides the rest. Compare numbers and
+          dates (“is more than 3000”, “is after 2026-03-31”), match all rules or any. Save what you keep using as
+          a view, sort and all, and it lives inside the database file.</p>
       </div>
     </article>
     <article class="shot">
-      <figure><img src="screenshots/form.webp" alt="One order in the form view" loading="lazy"></figure>
+      <figure><img src="screenshots/bulk.webp" alt="What the 9 unpaid orders add up to: totals, averages, earliest and latest" loading="lazy"></figure>
       <div>
-        <h3><span class="seal">六</span><span>One record <em>at a time</em></span></h3>
-        <p>A form for every table. Previous, Next, Save, New row.</p>
+        <h3><span class="seal">六</span><span>All of them <em>at once</em></span></h3>
+        <p>Do something with the rows you found: change a field in every one (“set Paid to Yes”), delete them, or
+          see what they add up to, with totals, averages, earliest and latest. Jubako says how many rows first.</p>
       </div>
     </article>
     <article class="shot flip">
-      <figure><img src="screenshots/report.webp" alt="The report designer with a landscape preview" loading="lazy"></figure>
+      <figure><img src="screenshots/form.webp" alt="One order in a form arranged with its own title and fields" loading="lazy"></figure>
       <div>
-        <h3><span class="seal">七</span><span>Reports that <em>fit the page</em></span></h3>
-        <p>Pick the columns, a title, the page size. Columns shrink and wrap so the whole table fits. One layout
-          paints the preview, the PDF and the printer, so what you see is what prints. Export to CSV, Excel or PDF.</p>
+        <h3><span class="seal">七</span><span>One record <em>at a time</em></span></h3>
+        <p>A form for every table. Previous, Next, Save, New row, Duplicate. Arrange it: the order of the fields,
+          what each is called, which to leave out. Hidden fields keep their values.</p>
       </div>
     </article>
     <article class="shot">
+      <figure><img src="screenshots/report.webp" alt="The report designer: bike sales grouped by rep, with a total per rep" loading="lazy"></figure>
+      <div>
+        <h3><span class="seal">八</span><span>Reports that <em>fit the page</em></span></h3>
+        <p>Pick the columns, a title, the page size. Sort it, group it with a heading per group, total the number
+          columns, add your own header and footer, or print straight from a saved view. Columns shrink and wrap so
+          the whole table fits, and what you see is what prints. Export to CSV, Excel or PDF.</p>
+      </div>
+    </article>
+    <article class="shot flip">
       <figure><img src="screenshots/light.webp" alt="The grid in a light Omarchy theme" loading="lazy"></figure>
       <div>
-        <h3><span class="seal">八</span><span>Wears <em>your theme</em></span></h3>
+        <h3><span class="seal">九</span><span>Wears <em>your theme</em></span></h3>
         <p>Jubako reads your Omarchy theme and follows it, dark or light, with your accent colour. Change theme and
           the open window changes with it.</p>
       </div>
@@ -130,14 +145,18 @@
   </section>
 
   <section id="agents" class="agents">
-    <h3><span class="seal">九</span><span>Let your <em>agents</em> in</span></h3>
-    <p>An MCP server and a command line do the same jobs as the window, so “turn this spreadsheet into a database”
-      just works from Claude Code or any MCP client.</p>
+    <h3><span class="seal">十</span><span>Let your <em>agents</em> in</span></h3>
+    <p>An MCP server (36 tools) and a command line do the same jobs as the window: templates, rules and sorts,
+      changing many rows at once, grouped reports. “Turn this spreadsheet into a database” just works from
+      Claude Code or any MCP client.</p>
     <div class="term" role="img" aria-label="A terminal session using the jubako command line">
       <div class="term-bar"><i></i><i></i><i></i><span>jubako</span></div>
-<pre><span class="p">$</span> jubako new "Harbor Cycles" ~/Documents/harbor-cycles
-<span class="p">$</span> jubako import ~/Documents/harbor-cycles.jubadb book.xlsx --all-sheets
-<span class="p">$</span> jubako report ~/Documents/harbor-cycles.jubadb orders orders.pdf --landscape
+<pre><span class="p">$</span> jubako new "Harbor Cycles" harbor-cycles
+<span class="p">$</span> jubako import harbor-cycles.jubadb book.xlsx --all-sheets
+<span class="p">$</span> jubako rows harbor-cycles.jubadb orders --filter total more_than 3000 --sort total:desc
+<span class="p">$</span> jubako set harbor-cycles.jubadb orders paid yes --filter status is Delivered
+<span class="p">$</span> jubako report harbor-cycles.jubadb orders sales.pdf --view "Bike sales" --group-by rep --total total:sum
+<span class="p">$</span> jubako new "Bike stock" stock --template inventory
 <span class="c"># or let an agent drive it: claude mcp add jubako -- jubako-mcp</span></pre>
     </div>
   </section>
@@ -164,13 +183,15 @@
       </div>
     </div>
     <p class="fine">Checksums and release notes are on the <a href="https://github.com/ninepointlabs/jubako/releases/latest">latest
-      release</a>. To run from source, see the <a href="https://github.com/ninepointlabs/jubako#install">README</a>.</p>
+      release</a>. To run from source, see the <a href="https://github.com/ninepointlabs/jubako#install">README</a>.
+      Templates, rules and sorting, rows in bulk, grouped reports, no-repeats fields and the form arranger are newer
+      than 0.2.0: they come with the next release, or from source today.</p>
   </section>
 </main>
 
 <footer>
   <p class="say"><span class="jp" lang="ja">ひとつの箱に、すべてを。</span> <i>Everything, in one box.</i></p>
-  <p class="pills"><span>One file, every table</span><span>Forms · views · reports</span><span>CLI + MCP</span><span>Free &amp; open source</span></p>
+  <p class="pills"><span>One file, every table</span><span>Templates · forms · views · reports</span><span>CLI + MCP</span><span>Free &amp; open source</span></p>
   <p class="small">Made by <a href="https://ninepointlabs.com">Nine Point Labs</a> for <a href="https://omarchy.org">Omarchy</a>.
     MIT licence. Screenshots use an invented bike shop.</p>
 </footer>
