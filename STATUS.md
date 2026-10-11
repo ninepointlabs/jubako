@@ -2,6 +2,10 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-10.**
 
+## Release 0.4.0 — 2026-10-10
+
+Lookup fields (`TODO.md` item 8), as Arch, .deb and .rpm packages.
+
 ## 2026-10-10 — Relationships: lookup fields (`TODO.md` item 8)
 
 A **lookup** field points at a row of another table: an order's Item points
