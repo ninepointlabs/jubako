@@ -31,8 +31,9 @@ for exactly what works today.
   a table, or delete the whole database file. The destructive ones ask first.
 - **See only some rows.** "Show rows where Moved is not Yes" hides the rest
   in the grid and the form, and a printed report can use the same rule.
-  Save a rule you keep using as a view, like "Still here", and it lives in
-  the database file.
+  Combine rules ("and" / "or"), compare numbers and dates ("is after
+  2024-01-01"), and tap a column heading to sort. Save what you keep using
+  as a view, like "Still here", and it lives in the database file.
 - **Print a tidy report.** Pick the columns, a title, the page size. Columns
   shrink and wrap so the whole table fits the page width. See it before you
   print it, or save it as a PDF.

@@ -108,3 +108,98 @@ def test_reports_honour_the_filter(pets, sandbox):
     assert plain["filter"] is None and plain["filter_words"] == ""
     with pytest.raises(BadName):
         normalise_spec(pets, {"table": "pets", "filter": {"field": "nope", "op": "is", "value": 1}})
+
+
+# -- comparisons, several rules, sorting --------------------------------------
+
+def test_comparisons_on_numbers_and_dates(pets):
+    assert names(pets.list_rows("pets", where={"field": "age", "op": "more_than", "value": "3"})) == ["Rex", "Shadow"]
+    assert names(pets.list_rows("pets", where={"field": "age", "op": "at_least", "value": 4})) == ["Rex", "Shadow"]
+    assert names(pets.list_rows("pets", where={"field": "age", "op": "less_than", "value": "4"})) == ["Milo"]
+    assert names(pets.list_rows("pets", where={"field": "age", "op": "at_most", "value": "4"})) == ["Rex", "Milo"]
+    assert names(pets.list_rows("pets", where={"field": "weight_kg", "op": ">", "value": "5"})) == ["Rex", "Shadow"]
+    assert names(pets.list_rows("pets", where={"field": "adopted_on", "op": "after", "value": "2023-06-01"})) == ["Milo", "Pip"]
+    assert names(pets.list_rows("pets", where={"field": "adopted_on", "op": "before", "value": "2021-03-14"})) == ["Shadow"]
+    assert names(pets.list_rows("pets", where={"field": "adopted_on", "op": "on_or_before", "value": "2021-03-14"})) == ["Rex", "Shadow"]
+    assert names(pets.list_rows("pets", where={"field": "name", "op": "starts_with", "value": "sH"})) == ["Shadow"]
+    assert names(pets.list_rows("pets", where={"field": "name", "op": "starts_with", "value": "_"})) == []
+
+
+def test_comparisons_are_checked_in_words(pets):
+    fields = pets.describe_table("pets").fields
+    with pytest.raises(JubakoError, match="only works on a number or a date"):
+        normalise_filter(fields, {"field": "name", "op": "more_than", "value": "b"})
+    with pytest.raises(JubakoError, match="only works on a number or a date"):
+        normalise_filter(fields, {"field": "moved", "op": "less_than", "value": "yes"})
+    with pytest.raises(JubakoError, match="not a date"):
+        normalise_filter(fields, {"field": "adopted_on", "op": "after", "value": "soon"})
+    with pytest.raises(JubakoError, match="only works on a words field"):
+        normalise_filter(fields, {"field": "age", "op": "starts_with", "value": "1"})
+    with pytest.raises(JubakoError, match="Say what adopted_on is after"):
+        normalise_filter(fields, {"field": "adopted_on", "op": "after", "value": ""})
+
+
+def test_several_rules_all_or_any(pets):
+    both = {"match": "all", "rules": [
+        {"field": "age", "op": "more_than", "value": "3"},
+        {"field": "moved", "op": "is", "value": "yes"},
+    ]}
+    page = pets.list_rows("pets", where=both)
+    assert names(page) == ["Rex", "Shadow"]
+    either = {"match": "any", "rules": [
+        {"field": "age", "op": "empty"},
+        {"field": "name", "op": "is", "value": "Milo"},
+    ]}
+    assert names(pets.list_rows("pets", where=either)) == ["Milo", "Pip"]
+    assert pets.count_rows("pets", where=either) == 2
+    narrower = {"match": "all", "rules": [
+        {"field": "age", "op": "more_than", "value": "3"},
+        {"field": "name", "op": "contains", "value": "sha"},
+    ]}
+    assert names(pets.list_rows("pets", where=narrower)) == ["Shadow"]
+    # One rule in a list reads the same as the plain rule; an empty list is no filter.
+    fields = pets.describe_table("pets").fields
+    assert normalise_filter(fields, {"match": "any", "rules": [{"field": "age", "op": "empty"}]}) == {
+        "field": "age", "op": "empty", "value": None}
+    assert normalise_filter(fields, {"match": "all", "rules": []}) is None
+    with pytest.raises(JubakoError, match="all or any"):
+        normalise_filter(fields, {"match": "most", "rules": [{"field": "age", "op": "empty"}] * 2})
+    with pytest.raises(JubakoError, match="at most 10"):
+        normalise_filter(fields, {"match": "all", "rules": [{"field": "age", "op": "empty"}] * 11})
+
+
+def test_several_rules_in_words(pets):
+    fields = pets.describe_table("pets").fields
+    spec = normalise_filter(fields, {"match": "any", "rules": [
+        {"field": "adopted_on", "op": "after", "value": "2023-01-01"},
+        {"field": "moved", "op": "is", "value": "no"},
+    ]})
+    assert filter_words(fields, spec) == "adopted_on is after 2023-01-01 or Moved is No"
+
+
+def test_sort_puts_blanks_last_and_breaks_ties_by_row(pets):
+    assert names(pets.list_rows("pets", sort=[{"field": "age"}])) == ["Milo", "Rex", "Shadow", "Pip"]
+    assert names(pets.list_rows("pets", sort=[{"field": "age", "descending": True}])) == ["Shadow", "Rex", "Milo", "Pip"]
+    # Moved is Yes for Rex and Shadow; ties fall back to the order rows were added.
+    assert names(pets.list_rows("pets", sort=[{"field": "moved", "descending": True}, "name"])) == [
+        "Rex", "Shadow", "Milo", "Pip"]
+    page = pets.list_rows("pets", sort={"field": "name"}, where={"field": "age", "op": "not_empty"})
+    assert names(page) == ["Milo", "Rex", "Shadow"]
+    assert page["sort"] == [{"field": "name", "descending": False}]
+    # The older one-field way still works.
+    assert names(pets.list_rows("pets", order_by="name", descending=True)) == ["Shadow", "Rex", "Pip", "Milo"]
+    assert names(pets.list_rows("pets", descending=True)) == ["Pip", "Shadow", "Milo", "Rex"]
+    with pytest.raises(BadName):
+        pets.list_rows("pets", sort=[{"field": "colour"}])
+    with pytest.raises(JubakoError, match="at most 3"):
+        pets.list_rows("pets", sort=["name", "age", "moved", "weight_kg"])
+
+
+def test_sort_words():
+    from jubako.filters import sort_words
+
+    fields = [Field("name"), Field("age", "integer"), Field("born", "date", "Born")]
+    assert sort_words(fields, [{"field": "age", "descending": True}, {"field": "name", "descending": False}]) == (
+        "Age, highest first, then Name, A to Z")
+    assert sort_words(fields, [{"field": "born", "descending": True}]) == "Born, newest first"
+    assert sort_words(fields, []) == ""

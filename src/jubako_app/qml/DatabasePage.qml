@@ -346,20 +346,49 @@ Page {
                     visible: page.mode === "grid"
                     syncView: grid
                     clip: true
+                    // Tap a heading to sort by it: up, then down, then back to the order rows were added.
                     delegate: Rectangle {
+                        id: headingCell
                         required property string display
+                        required property int column
+                        property string fieldName: Bridge.rows.nameAt(column)
+                        property var sortItem: {
+                            const order = Bridge.sort
+                            for (let i = 0; i < order.length; i++) if (order[i].field === fieldName) return order[i]
+                            return null
+                        }
                         implicitWidth: 100
                         implicitHeight: 36
-                        color: Theme.lighterBackground
+                        color: headingTap.containsMouse ? Qt.lighter(Theme.lighterBackground, 1.12) : Theme.lighterBackground
                         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.muted }
-                        Label {
+                        RowLayout {
                             anchors.fill: parent
                             anchors.leftMargin: 10
-                            anchors.rightMargin: 10
-                            verticalAlignment: Text.AlignVCenter
-                            text: parent.display
-                            font.bold: true
-                            elide: Text.ElideRight
+                            anchors.rightMargin: 8
+                            spacing: 4
+                            Label {
+                                Layout.fillWidth: true
+                                verticalAlignment: Text.AlignVCenter
+                                text: headingCell.display
+                                font.bold: true
+                                elide: Text.ElideRight
+                            }
+                            Label {
+                                visible: headingCell.sortItem !== null
+                                text: headingCell.sortItem && headingCell.sortItem.descending ? "\u25bc" : "\u25b2"
+                                color: Theme.accent
+                                font.pointSize: 8
+                            }
+                        }
+                        MouseArea {
+                            id: headingTap
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                const r = Bridge.sortBy(headingCell.fieldName)
+                                if (!r.ok) toast.show(r.error)
+                            }
                         }
                     }
                 }
@@ -432,15 +461,17 @@ Page {
                 }
 
                 Label {
+                    objectName: "rowsStatus"
                     Layout.topMargin: 8
-                    text: Bridge.filterWords !== ""
+                    text: (Bridge.filterWords !== ""
                         ? (Bridge.totalRows === 0
                             ? "No rows where " + Bridge.filterWords + ". Press Clear to see all " + Bridge.allRows + "."
                             : "Showing " + Bridge.totalRows + " of " + Bridge.allRows + " rows where " + Bridge.filterWords
                               + (Bridge.shownRows < Bridge.totalRows ? " (first " + Bridge.shownRows + ")" : ""))
                         : Bridge.shownRows === Bridge.totalRows
                         ? (Bridge.totalRows === 1 ? "1 row" : Bridge.totalRows + " rows")
-                        : "Showing the first " + Bridge.shownRows + " of " + Bridge.totalRows + " rows"
+                        : "Showing the first " + Bridge.shownRows + " of " + Bridge.totalRows + " rows")
+                        + (Bridge.sortWords !== "" ? "  \u00b7  sorted by " + Bridge.sortWords : "")
                     color: Bridge.filterWords !== "" ? Theme.yellow : Theme.lightForeground
                     Layout.fillWidth: true
                     elide: Text.ElideRight

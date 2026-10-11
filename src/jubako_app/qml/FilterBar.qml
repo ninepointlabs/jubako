@@ -2,85 +2,224 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// "Show rows where  [Field]  [is / is not / is empty / is not empty / contains]  [value]  Apply  Clear   Views…"
+// "Show rows where  [Field]  [is / is more than / contains / …]  [value]  ×    Apply  Clear  + Rule   Views…"
+//              "and [Field]  [...]  [value]  ×"
 // The rule is positive on purpose: to hide people who moved, say "Moved is not Yes".
-// A rule worth keeping is saved as a view (Views… → Save view…) inside the database file.
+// Several rules match all of them ("and") or any of them ("or"); the matches on offer
+// follow the field's type, so a date reads "is after" and a number "is more than".
+// A rule worth keeping is saved as a view (Views… → Save view…) inside the database file,
+// together with the sort picked by tapping a column heading.
 RowLayout {
     id: bar
     objectName: "filterBar"
     spacing: 8
-    property var ops: Bridge.filterOps()
-    property bool needsValue: ops[opBox.currentIndex] ? ops[opBox.currentIndex].needsValue : true
+    property string match: "all"
+    // Which table the bar was last showing, so moving to another table starts it fresh.
+    property string shownTable: ""
+
+    ListModel { id: ruleModel; objectName: "ruleModel" }
+
+    function fieldAt(name) {
+        for (let i = 0; i < Bridge.fields.length; i++) if (Bridge.fields[i].name === name) return Bridge.fields[i]
+        return null
+    }
+    function blankRule() {
+        const first = Bridge.fields[0]
+        return { field: first ? first.name : "", op: "is", value: "" }
+    }
+    // Fill the rows in place (rows that stay keep their boxes), then trim or add at the end.
+    function loadRules(list) {
+        while (ruleModel.count > list.length) ruleModel.remove(ruleModel.count - 1)
+        for (let i = 0; i < list.length; i++) {
+            if (i < ruleModel.count) ruleModel.set(i, list[i])
+            else ruleModel.append(list[i])
+        }
+    }
+    function resetRules() {
+        loadRules([blankRule()])
+        match = "all"
+    }
+    function needsValue(op) {
+        return !(op === "empty" || op === "not_empty")
+    }
+    function rules() {
+        const out = []
+        for (let i = 0; i < ruleModel.count; i++) {
+            const r = ruleModel.get(i)
+            out.push({ field: r.field, op: r.op, value: needsValue(r.op) ? r.value : "" })
+        }
+        return out
+    }
 
     function apply() {
-        const field = Bridge.fields[fieldBox.currentIndex]
-        if (!field) return
-        const r = Bridge.setFilter(field.name, ops[opBox.currentIndex].key, needsValue ? valueField.text : "")
+        if (ruleModel.count === 0 || Bridge.fields.length === 0) return
+        const r = Bridge.setFilterRules(match, rules())
         if (!r.ok) toast.show(r.error)
     }
 
     function clear() {
-        valueField.text = ""
+        resetRules()
         const r = Bridge.clearFilter()
         if (!r.ok) toast.show(r.error)
     }
 
-    // Which table the bar was last showing, so moving to another table starts it fresh.
-    property string shownTable: ""
+    // What a saved view would keep, in words: "Rows where Moved is not Yes, sorted by Age, highest first".
+    function viewWords() {
+        const where = Bridge.filterWords !== "" ? "Rows where " + Bridge.filterWords : "All rows"
+        return Bridge.sortWords !== "" ? where + ", sorted by " + Bridge.sortWords : where
+    }
 
-    // When the table (or its filter) changes, show the rule on the bar.
+    function addRule() {
+        ruleModel.append(blankRule())
+    }
+
+    function removeRule(index) {
+        ruleModel.remove(index)
+        if (ruleModel.count === 0) resetRules()
+        if (Bridge.filterWords !== "") apply()   // a rule taken off an applied filter shows more rows now
+    }
+
+    Component.onCompleted: resetRules()
+
+    // When the table (or its filter) changes, show the rules on the bar.
     Connections {
         target: Bridge
         function onTableChanged() {
-            const f = Bridge.filter
+            const shown = Bridge.filterRules
             const otherTable = Bridge.currentTable !== bar.shownTable
             bar.shownTable = Bridge.currentTable
-            if (f && f.field) {
-                for (let i = 0; i < Bridge.fields.length; i++) if (Bridge.fields[i].name === f.field) fieldBox.currentIndex = i
-                for (let j = 0; j < bar.ops.length; j++) if (bar.ops[j].key === f.op) opBox.currentIndex = j
-                valueField.text = f.value === undefined || f.value === null ? "" : String(f.value)
+            if (shown.length > 0) {
+                bar.loadRules(shown.map(r => ({ field: r.field, op: r.op,
+                                                value: r.value === undefined || r.value === null ? "" : String(r.value) })))
+                bar.match = Bridge.filterMatch
             } else if (otherTable) {
                 // No rule on the new table: don't carry the last table's rule over.
-                fieldBox.currentIndex = 0
-                opBox.currentIndex = 0
-                valueField.text = ""
-            } else if (fieldBox.currentIndex >= Bridge.fields.length) {
-                fieldBox.currentIndex = 0
+                bar.resetRules()
+            } else {
+                // Same table, no filter: keep what was typed, but drop fields that are gone.
+                for (let i = 0; i < ruleModel.count; i++)
+                    if (!bar.fieldAt(ruleModel.get(i).field)) ruleModel.set(i, bar.blankRule())
             }
         }
     }
 
-    Label { text: "Show rows where"; color: Theme.lightForeground }
-    ComboBox {
-        id: fieldBox
-        Layout.preferredWidth: 160
-        model: Bridge.fields
-        textRole: "label"
-        onActivated: valueField.forceActiveFocus()
-    }
-    ComboBox {
-        id: opBox
-        Layout.preferredWidth: 130
-        model: bar.ops
-        textRole: "label"
-        onActivated: { if (!bar.needsValue) bar.apply(); else valueField.forceActiveFocus() }
-    }
-    TextField {
-        id: valueField
-        objectName: "filterValue"
+    ColumnLayout {
         Layout.fillWidth: true
-        Layout.minimumWidth: 90
-        Layout.maximumWidth: 220
-        visible: bar.needsValue
-        placeholderText: (Bridge.fields[fieldBox.currentIndex] || {}).type === "boolean" ? "yes or no" : "a value"
-        onAccepted: bar.apply()
+        Layout.alignment: Qt.AlignTop
+        spacing: 6
+
+        Repeater {
+            model: ruleModel
+            delegate: RowLayout {
+                id: ruleRow
+                required property int index
+                required property string field
+                required property string op
+                required property string value
+                property var fieldInfo: bar.fieldAt(field) || { type: "text", label: "" }
+                property var ops: Bridge.filterOpsFor(fieldInfo.type)
+                Layout.fillWidth: true
+                spacing: 8
+
+                // Not a binding: typing (or a script) sets the text, and a new rule from the bridge still shows.
+                onValueChanged: if (valueField.text !== value) valueField.text = value
+
+                function opIndex() {
+                    for (let j = 0; j < ops.length; j++) if (ops[j].key === op) return j
+                    return 0
+                }
+
+                Label {
+                    visible: ruleRow.index === 0
+                    Layout.preferredWidth: 118
+                    text: "Show rows where"
+                    color: Theme.lightForeground
+                }
+                ComboBox {
+                    visible: ruleRow.index > 0
+                    objectName: "matchBox" + ruleRow.index
+                    Layout.preferredWidth: 118
+                    model: [{ key: "all", label: "and" }, { key: "any", label: "or" }]
+                    textRole: "label"
+                    currentIndex: bar.match === "any" ? 1 : 0
+                    onActivated: function(i) { bar.match = i === 1 ? "any" : "all" }
+                }
+                ComboBox {
+                    id: fieldBox
+                    objectName: ruleRow.index === 0 ? "filterField" : "filterField" + ruleRow.index
+                    Layout.preferredWidth: 160
+                    model: Bridge.fields
+                    textRole: "label"
+                    currentIndex: {
+                        for (let i = 0; i < Bridge.fields.length; i++) if (Bridge.fields[i].name === ruleRow.field) return i
+                        return 0
+                    }
+                    onActivated: function(i) {
+                        const chosen = Bridge.fields[i]
+                        if (!chosen) return
+                        ruleModel.setProperty(ruleRow.index, "field", chosen.name)
+                        // A match that does not fit the new field's type goes back to "is".
+                        const fits = Bridge.filterOpsFor(chosen.type).some(o => o.key === ruleRow.op)
+                        if (!fits) ruleModel.setProperty(ruleRow.index, "op", "is")
+                        valueField.forceActiveFocus()
+                    }
+                }
+                ComboBox {
+                    id: opBox
+                    objectName: ruleRow.index === 0 ? "filterOp" : "filterOp" + ruleRow.index
+                    Layout.preferredWidth: 150
+                    model: ruleRow.ops
+                    textRole: "label"
+                    currentIndex: ruleRow.opIndex()
+                    onActivated: function(i) {
+                        const chosen = ruleRow.ops[i]
+                        ruleModel.setProperty(ruleRow.index, "op", chosen.key)
+                        if (!chosen.needsValue && ruleModel.count === 1) bar.apply()
+                        else valueField.forceActiveFocus()
+                    }
+                }
+                TextField {
+                    id: valueField
+                    objectName: ruleRow.index === 0 ? "filterValue" : "filterValue" + ruleRow.index
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 90
+                    Layout.maximumWidth: 220
+                    visible: bar.needsValue(ruleRow.op)
+                    Component.onCompleted: text = ruleRow.value
+                    placeholderText: ruleRow.fieldInfo.type === "boolean" ? "yes or no"
+                                   : ruleRow.fieldInfo.type === "date" ? "like 2024-01-31" : "a value"
+                    onTextEdited: ruleModel.setProperty(ruleRow.index, "value", text)
+                    onAccepted: bar.apply()
+                }
+                // Keeps the remove buttons in line when a row has no value box.
+                Item { visible: !valueField.visible; Layout.fillWidth: true; Layout.maximumWidth: 220 }
+                ToolButton {
+                    text: "\u00d7"
+                    objectName: "removeRule" + ruleRow.index
+                    visible: ruleModel.count > 1
+                    font.pointSize: 13
+                    ToolTip.visible: hovered
+                    ToolTip.text: "Take this rule off"
+                    onClicked: bar.removeRule(ruleRow.index)
+                }
+            }
+        }
     }
-    ActionButton { text: "Apply"; primary: true; onClicked: bar.apply() }
-    ActionButton { text: "Clear"; visible: Bridge.filterWords !== ""; onClicked: bar.clear() }
+
+    ActionButton { Layout.alignment: Qt.AlignTop; text: "Apply"; primary: true; onClicked: bar.apply() }
+    ActionButton { Layout.alignment: Qt.AlignTop; text: "Clear"; visible: Bridge.filterWords !== ""; onClicked: bar.clear() }
+    ActionButton {
+        Layout.alignment: Qt.AlignTop
+        objectName: "addRuleButton"
+        text: "+ Rule"
+        enabled: ruleModel.count < 10
+        onClicked: bar.addRule()
+    }
     Item { Layout.fillWidth: true; Layout.minimumWidth: 0 }
 
     // ---- saved views ----------------------------------------------------------
     ActionButton {
+        Layout.alignment: Qt.AlignTop
         text: Bridge.currentView !== "" ? "View: " + Bridge.currentView : "Views…"
         objectName: "viewsButton"
         onClicked: viewsMenu.open()
@@ -104,7 +243,7 @@ RowLayout {
                 visible: Bridge.views.length === 0
                 height: visible ? implicitHeight : 0
                 enabled: false
-                text: "No saved views yet — Apply a filter, then Save view…"
+                text: "No saved views yet — Apply a filter or sort, then Save view…"
             }
             Repeater {
                 model: Bridge.views
@@ -117,7 +256,7 @@ RowLayout {
             MenuSeparator {}
             MenuItem {
                 text: "Save view…"
-                enabled: Bridge.filterWords !== ""
+                enabled: Bridge.filterWords !== "" || Bridge.sortWords !== ""
                 onTriggered: saveViewDialog.openFor()
             }
             MenuItem {
@@ -163,7 +302,7 @@ RowLayout {
         Overlay.modal: Rectangle { color: Theme.isDark ? "#99000000" : "#55000000" }
         contentItem: ColumnLayout {
             spacing: 8
-            Label { Layout.fillWidth: true; text: "Rows where " + Bridge.filterWords; color: Theme.lightForeground; wrapMode: Text.WordWrap }
+            Label { Layout.fillWidth: true; text: bar.viewWords(); color: Theme.lightForeground; wrapMode: Text.WordWrap }
             Label { text: "Name"; font.bold: true; Layout.topMargin: 6 }
             TextField { id: viewName; Layout.fillWidth: true; placeholderText: "Like “Still here”"; onAccepted: saveViewDialog.go(false) }
             CheckBox { id: defaultBox; text: "Open this table with this view" }
@@ -186,7 +325,7 @@ RowLayout {
         width: 440
         padding: 20
         Overlay.modal: Rectangle { color: Theme.isDark ? "#99000000" : "#55000000" }
-        contentItem: Label { text: "There is already a view with that name. It will now show rows where " + Bridge.filterWords + "."; wrapMode: Text.WordWrap }
+        contentItem: Label { text: "There is already a view with that name. It will now show: " + bar.viewWords() + "."; wrapMode: Text.WordWrap }
         footer: DialogButtonBox {
             ActionButton { text: "Keep the old one"; DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
             ActionButton { text: "Replace it"; primary: true; DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole }

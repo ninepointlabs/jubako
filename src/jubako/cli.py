@@ -117,13 +117,32 @@ def cmd_tables(args: argparse.Namespace) -> int:
     return 0
 
 
+def _filter_from_args(args: argparse.Namespace) -> dict | None:
+    """--filter FIELD OP [VALUE], given once or more; --any matches any rule instead of all."""
+    rules = []
+    for item in args.filter or []:
+        if len(item) < 2:
+            raise JubakoError("A --filter needs a field and a match, like: --filter age more_than 3")
+        rules.append({"field": item[0], "op": item[1], "value": " ".join(item[2:]) if len(item) > 2 else None})
+    if not rules:
+        return None
+    return {"match": "any" if getattr(args, "any", False) else "all", "rules": rules}
+
+
+def _sort_from_args(args: argparse.Namespace) -> list | None:
+    """--sort FIELD or --sort FIELD:desc, given once or more."""
+    out = []
+    for item in args.sort or []:
+        name, _, direction = item.partition(":")
+        out.append({"field": name, "descending": direction.lower() in ("desc", "down", "descending")})
+    return out or None
+
+
 def cmd_rows(args: argparse.Namespace) -> int:
-    where = None
-    if args.filter:
-        field, op = args.filter[0], args.filter[1]
-        where = {"field": field, "op": op, "value": args.filter[2] if len(args.filter) > 2 else None}
+    where = _filter_from_args(args)
     with open_database(backend="sqlite", path=args.path) as storage:
-        page = storage.list_rows(args.table, limit=args.limit, offset=args.offset, where=where)
+        page = storage.list_rows(args.table, limit=args.limit, offset=args.offset, where=where,
+                                 sort=_sort_from_args(args))
     if args.json:
         print(json.dumps(page, indent=2, default=str))
         return 0
@@ -155,10 +174,9 @@ def cmd_views(args: argparse.Namespace) -> int:
 
 
 def cmd_save_view(args: argparse.Namespace) -> int:
-    spec = {"field": args.filter[0], "op": args.filter[1], "value": args.filter[2] if len(args.filter) > 2 else None}
     with open_database(backend="sqlite", path=args.path) as storage:
-        view = _views.save_view(storage, args.table, args.name, spec, replace=args.replace,
-                                default=True if args.default else None)
+        view = _views.save_view(storage, args.table, args.name, _filter_from_args(args), replace=args.replace,
+                                default=True if args.default else None, sort=_sort_from_args(args))
     print(f"Saved the view {view['name']!r} for {args.table}: {view['words']}")
     return 0
 
@@ -178,6 +196,16 @@ def cmd_recent(args: argparse.Namespace) -> int:
         where = entry.get("path") or entry.get("where")
         print(f"{entry.get('title', '?'):24} {entry.get('backend', '?'):9} {where}")
     return 0
+
+
+def _filter_arguments(sub: argparse.ArgumentParser) -> None:
+    sub.add_argument(
+        "--filter", nargs="+", action="append", metavar="X",
+        help="FIELD OP [VALUE], once per rule. OP: is, is_not, empty, not_empty, contains, "
+             "starts_with, more_than, less_than, at_least, at_most (or after / before for dates)",
+    )
+    sub.add_argument("--any", action="store_true", help="Match any --filter rule, not all of them")
+    sub.add_argument("--sort", action="append", metavar="FIELD[:desc]", help="Sort by a field, once per field")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -229,10 +257,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_argument("--limit", type=int, default=20)
     sub.add_argument("--offset", type=int, default=0)
     sub.add_argument("--json", action="store_true")
-    sub.add_argument(
-        "--filter", nargs="+", metavar="X",
-        help="FIELD OP [VALUE]; OP is is, is_not, empty, not_empty or contains",
-    )
+    _filter_arguments(sub)
     sub.set_defaults(func=cmd_rows)
 
     sub = subs.add_parser("export", help="Write a table out as CSV, Excel or PDF")
@@ -243,16 +268,16 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_argument("--overwrite", action="store_true")
     sub.set_defaults(func=cmd_export)
 
-    sub = subs.add_parser("views", help="Saved views (named filters) in a database")
+    sub = subs.add_parser("views", help="Saved views (named filters and sorts) in a database")
     sub.add_argument("path")
     sub.add_argument("table", nargs="?")
     sub.set_defaults(func=cmd_views)
 
-    sub = subs.add_parser("save-view", help="Keep a filter under a name")
+    sub = subs.add_parser("save-view", help="Keep a filter and/or a sort under a name")
     sub.add_argument("path")
     sub.add_argument("table")
     sub.add_argument("name")
-    sub.add_argument("--filter", nargs="+", required=True, metavar="X", help="FIELD OP [VALUE]")
+    _filter_arguments(sub)
     sub.add_argument("--replace", action="store_true")
     sub.add_argument("--default", action="store_true", help="Open the table with this view")
     sub.set_defaults(func=cmd_save_view)

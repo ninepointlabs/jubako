@@ -523,7 +523,9 @@ def test_add_field_and_filter_from_the_bridge(pets):
     assert pets.saveRow(third, {"moved": "yes"})["ok"] is True
 
     ops = [o["key"] for o in pets.filterOps()]
-    assert ops == ["is", "is_not", "empty", "not_empty", "contains"]
+    assert ops[:5] == ["is", "is_not", "empty", "not_empty", "contains"]
+    assert [o["key"] for o in pets.filterOpsFor("integer")] == ["is", "is_not", "empty", "not_empty", "more_than", "less_than", "at_least", "at_most"]
+    assert pets.filterOpsFor("date")[4]["label"] == "is after"
     shown = pets.setFilter("moved", "is_not", "yes")
     assert shown["ok"] is True
     assert pets.totalRows == 2
@@ -707,6 +709,17 @@ def test_add_field_through_the_window(app, bridge, sandbox, pets_csv):
     engine.deleteLater()
 
 
+def _find_item(window, name):
+    """An item by objectName, walking the visual tree (a Repeater's rows are not QObject children)."""
+    stack = [window.contentItem()]
+    while stack:
+        item = stack.pop()
+        if item.objectName() == name:
+            return item
+        stack.extend(item.childItems())
+    return None
+
+
 def _load_window(app, bridge):
     from PySide6.QtQml import QQmlApplicationEngine
 
@@ -717,10 +730,13 @@ def _load_window(app, bridge):
     provider = ReportImageProvider()
     engine.addImageProvider("report", provider)
     engine.rootContext().setContextProperty("Bridge", bridge)
-    engine.rootContext().setContextProperty("Report", Report(bridge.storage, provider))
+    # Parented to the engine, so Python's garbage collector cannot take it from under the window.
+    report = Report(bridge.storage, provider, engine)
+    engine.rootContext().setContextProperty("Report", report)
     theme = Theme(app)
     engine.rootContext().setContextProperty("Theme", theme)
     engine.load(QUrl.fromLocalFile(str(QML_DIR / "Main.qml")))
+    engine._report = report
     return engine, engine.rootObjects()[0], theme
 
 
@@ -771,16 +787,16 @@ def test_the_filter_bar_starts_fresh_on_another_table(app, bridge, sandbox):
     wait_for_import(bridge)
     try:
         app.processEvents()
-        value = window.findChild(QObject, "filterValue")
         bridge.selectTable("people")
         assert bridge.setFilter("moved", "is_not", "yes")["ok"] is True
         app.processEvents()
+        value = _find_item(window, "filterValue")
         assert value.property("text") == "yes"
         bridge.clearFilter()
         value.setProperty("text", "typed but not applied")
         bridge.selectTable("places")
         app.processEvents()
-        assert value.property("text") == ""
+        assert _find_item(window, "filterValue").property("text") == ""
     finally:
         engine.deleteLater()
         app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
@@ -814,3 +830,60 @@ def test_the_views_menu_is_wide_enough_for_its_rows(app, bridge, sandbox, pets_c
     finally:
         engine.deleteLater()
         app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+def test_the_filter_bar_shows_several_rules_and_headings_sort(app, bridge, sandbox, pets_csv):
+    from PySide6.QtCore import QEvent
+
+    engine, window, _ = _load_window(app, bridge)
+    assert bridge.importIntoNew(str(pets_csv), str(sandbox / "rules.jubadb"))["ok"] is True
+    try:
+        rules = [{"field": "age", "op": "more_than", "value": "3"}, {"field": "name", "op": "is", "value": "Pip"}]
+        assert bridge.setFilterRules("any", rules)["ok"] is True
+        app.processEvents()
+        assert bridge.totalRows == 3
+        assert bridge.filterWords == "age is more than 3 or name is Pip"
+        assert _find_item(window, "filterOp").property("currentText") == "is more than"
+        assert _find_item(window, "filterValue1").property("text") == "Pip"
+        assert _find_item(window, "matchBox1").property("currentText") == "or"
+
+        # Taking a rule off an applied filter applies what is left.
+        remove = _find_item(window, "removeRule1")
+        remove.clicked.emit()
+        app.processEvents()
+        assert bridge.filterWords == "age is more than 3"
+        assert _find_item(window, "filterValue1") is None
+
+        # A date field offers before/after; a words field does not offer comparisons.
+        assert [o["label"] for o in bridge.filterOpsFor("date")][4:6] == ["is after", "is before"]
+        assert "more_than" not in [o["key"] for o in bridge.filterOpsFor("text")]
+
+        # Sorting: up, down, off; the status line says so.
+        bridge.clearFilter()
+        assert bridge.sortBy("age")["ok"] is True
+        app.processEvents()
+        assert [bridge.rows.data(bridge.rows.index(r, 1)) for r in range(4)] == ["Milo", "Rex", "Shadow", "Pip"]
+        assert "sorted by age, lowest first" in _find_item(window, "rowsStatus").property("text")
+        bridge.sortBy("age")
+        assert bridge.sort == [{"field": "age", "descending": True}]
+        bridge.sortBy("age")
+        assert bridge.sort == [] and bridge.sortWords == ""
+    finally:
+        engine.deleteLater()
+        app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+def test_views_keep_the_sort_from_the_bridge(pets):
+    assert pets.sortBy("name")["ok"] is True
+    # A sort alone is enough to save a view.
+    assert pets.saveView("By name", False, True)["ok"] is True
+    assert pets.views[0]["words"] == "sorted by name, A to Z"
+    assert pets.setSort([])["ok"] is True
+    assert pets.currentView == ""
+    assert pets.applyView("By name")["ok"] is True
+    assert pets.sort == [{"field": "name", "descending": False}]
+    assert pets.currentView == "By name"
+    # Changing the sort detaches from the view; the filter keeps it unless the rules change.
+    pets.sortBy("name")
+    assert pets.currentView == ""
+    assert pets.setSort([{"field": "nope"}])["ok"] is False

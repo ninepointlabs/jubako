@@ -1,6 +1,39 @@
 # Jubako — status
 
-**Phase B (forms, Excel, reports, printing). Last updated 2026-09-28.**
+**Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-10.**
+
+## 2026-10-10 — Access features, part 1: queries
+
+Working through `TODO.md` (the Access features worth having, items 1–7).
+
+**7a. Queries on one table, still no SQL.**
+- **More matches.** Numbers: is more than / less than / at least / at most.
+  Dates: is after / before / on or after / on or before (same ops, date
+  words). Words: starts with. The filter bar only offers the matches that
+  fit the field's type (`filters.ops_for`, `Bridge.filterOpsFor`).
+- **Several rules.** `+ Rule` adds a row; the second row's "and / or" sets
+  how all rules combine. A filter is now one rule `{field, op, value}` or
+  `{match: all|any, rules: [...]}` (at most 10); one rule is always stored in
+  the old shape, so existing views read the same. × takes a rule off (and
+  re-applies if a filter was on).
+- **Sort.** Tap a column heading: up, down, off (▲/▼ in the heading, "sorted
+  by …" in the status line). Blanks sort last on every engine
+  (`ORDER BY (col IS NULL), col`), and the row number breaks ties.
+  `list_rows(sort=[{field, descending}])`, up to 3 fields; `order_by` still works.
+- **Views keep the sort.** A view is a filter and/or a sort. Field renames
+  follow into rules and sorts; a dropped field deletes views whose rules use
+  it, and only trims the sort of views that sorted by it.
+- CLI: `--filter` can repeat, `--any`, `--sort FIELD[:desc]` on `rows` and
+  `save-view`. MCP: `filter` takes `match`/`rules`; `sort` on `list_rows`
+  and `save_view`.
+
+**Test helper fix.** `tests/test_app.py::_load_window` made the `Report`
+object without keeping a reference, so Python collected it and the window's
+report dialog saw `null` (the "Cannot read property 'pageCount' of null"
+warnings in test runs). It is now parented to the engine. The real app
+(`main.py`) was not affected.
+
+180 tests pass.
 
 ## Fix 2026-09-28 — theme palette, number text, form and filter bar
 
@@ -100,7 +133,7 @@ with a message when picked.
 **Core, MCP, CLI.** `jubako/views.py`: `save_view` (refuses a blank or
 taken name, needs a real filter), `get_view`, `list_views`, `delete_view`,
 `rename_view`, `default_view`; uses `filters.normalise_filter`, so there is
-still one filter language. MCP (28 tools now): `list_views`, `get_view`,
+still one filter language. MCP (28 tools then): `list_views`, `get_view`,
 `save_view` (`replace`, `default`), `delete_view`. CLI: `views`,
 `save-view --filter FIELD OP [VALUE] [--default] [--replace]`, `delete-view`.
 

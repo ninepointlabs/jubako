@@ -15,7 +15,7 @@ from typing import Any
 
 from ..errors import BadName, TableMissing
 from ..fields import INTERNAL_PREFIX, LEGACY_INTERNAL_PREFIX, Field, coerce, is_safe_name
-from ..filters import normalise_filter, where_clause
+from ..filters import normalise_filter, normalise_sort, order_clause, where_clause
 
 #: Table that remembers each table's declared fields and labels.
 META_TABLE = f"{INTERNAL_PREFIX}tables"
@@ -398,26 +398,30 @@ class Storage(ABC):
         order_by: str | None = None,
         descending: bool = False,
         where: dict[str, Any] | None = None,
+        sort: Any = None,
     ) -> dict[str, Any]:
-        """A page of rows. `where` is {field, op, value} (see `filters.py`), or None for all."""
+        """A page of rows.
+
+        `where` is a filter (see `filters.py`), or None for all. `sort` is a
+        list of {field, descending}; `order_by` / `descending` is the older
+        one-field way of saying the same.
+        """
         info = self.describe_table(table)
         limit = max(1, min(int(limit), 5000))
         offset = max(0, int(offset))
         filter_spec = normalise_filter(info.fields, where)
         clause, params = where_clause(self, filter_spec)
-
-        order_field = ROW_ID
-        if order_by:
-            if order_by != ROW_ID and order_by not in {f.name for f in info.fields}:
-                raise BadName(f"This table has no field called {order_by!r}.")
-            order_field = order_by
+        if not sort and (order_by or descending):
+            sort = [{"field": order_by or ROW_ID, "descending": descending}]
+        sort_spec = normalise_sort(info.fields, sort)
 
         columns = [ROW_ID] + [f.name for f in info.fields]
+        order = order_clause(self, sort_spec)
         sql = (
             f"SELECT {', '.join(self.quote(c) for c in columns)} FROM {self.quote(table)} "
             + (f"WHERE {clause} " if clause else "")
-            + f"ORDER BY {self.quote(order_field)} {'DESC' if descending else 'ASC'} "
-            f"LIMIT {limit} OFFSET {offset}"
+            + (f"ORDER BY {order} " if order else "")
+            + f"LIMIT {limit} OFFSET {offset}"
         )
         rows = self.query(sql, params)
         # Column 0 is the row id; the rest line up with the fields.
@@ -436,6 +440,7 @@ class Storage(ABC):
             "total": matching,
             "total_all": info.row_count,
             "filter": filter_spec,
+            "sort": sort_spec,
         }
 
     def update_row(self, table: str, row_id: int, values: dict[str, Any]) -> bool:

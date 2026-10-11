@@ -26,7 +26,18 @@ from jubako import catalog, schema, views
 from jubako.errors import JubakoError
 from jubako.exporter import export_table
 from jubako.fields import FIELD_TYPE_LABELS, FIELD_TYPES, Field, slugify_name
-from jubako.filters import OP_WORDS, OPS, filter_words, normalise_filter
+from jubako.filters import (
+    NEEDS_VALUE,
+    OPS,
+    filter_match,
+    filter_rules,
+    filter_words,
+    normalise_filter,
+    normalise_sort,
+    op_words,
+    ops_for,
+    sort_words,
+)
 from jubako.importer import import_spreadsheet, import_workbook, plan_import, workbook_plan
 from jubako.paths import default_documents_dir, home
 from jubako.reports import cell_text, form_for
@@ -150,6 +161,11 @@ class RowsModel(QAbstractTableModel):
         return int(min(max(60, longest * 9 + 28), 360))
 
     @Slot(int, result=str)
+    def nameAt(self, column: int) -> str:  # noqa: N802
+        """The field name behind a column ("id" for the row number)."""
+        return self._names[column] if 0 <= column < len(self._names) else ""
+
+    @Slot(int, result=str)
     def kindAt(self, column: int) -> str:  # noqa: N802
         kind = self._kinds[column] if column < len(self._kinds) else None
         return kind or "id"
@@ -201,6 +217,9 @@ class Bridge(QObject):
         #: The active filter per table, kept for as long as the database is open.
         self._filters: dict[str, dict[str, Any]] = {}
         self._filter: dict[str, Any] | None = None
+        #: The active sort per table: [{field, descending}], empty for "as added".
+        self._sorts: dict[str, list[dict[str, Any]]] = {}
+        self._sort: list[dict[str, Any]] = []
         self._all_rows = 0
         #: The saved view the current filter came from, per table ("" when none / edited away).
         self._view_names: dict[str, str] = {}
@@ -288,23 +307,47 @@ class Bridge(QObject):
 
     @Property("QVariantMap", notify=tableChanged)
     def filter(self) -> dict[str, Any]:
-        """The current table's filter: {field, op, value}, or {} for all rows."""
-        if not self._filter:
-            return {}
-        out = dict(self._filter)
-        if isinstance(out.get("value"), bool):
-            out["value"] = "yes" if out["value"] else "no"
-        elif out.get("value") is not None:
-            out["value"] = str(out["value"])
+        """The current table's first rule: {field, op, value}, or {} for all rows."""
+        rules = self.filterRules
+        return rules[0] if rules else {}
+
+    @Property("QVariantList", notify=tableChanged)
+    def filterRules(self) -> list[dict[str, Any]]:  # noqa: N802
+        """Every rule of the current filter, values as text the way the bar shows them."""
+        out = []
+        for rule in filter_rules(self._filter):
+            rule = dict(rule)
+            if isinstance(rule.get("value"), bool):
+                rule["value"] = "yes" if rule["value"] else "no"
+            elif rule.get("value") is not None:
+                rule["value"] = str(rule["value"])
+            out.append(rule)
         return out
+
+    @Property(str, notify=tableChanged)
+    def filterMatch(self) -> str:  # noqa: N802
+        """"all" or "any": how the current rules combine."""
+        return filter_match(self._filter)
 
     @Property(str, notify=tableChanged)
     def filterWords(self) -> str:  # noqa: N802
         """The rule in plain words, like "Moved is not Yes"; blank when showing all rows."""
         if not self._filter:
             return ""
-        fields = [Field(name=f["name"], type=f["type"], label=f["label"]) for f in self._fields]
-        return filter_words(fields, self._filter)
+        return filter_words(self._field_objects(), self._filter)
+
+    @Property("QVariantList", notify=tableChanged)
+    def sort(self) -> list[dict[str, Any]]:
+        """The current table's sort: [{field, descending}], empty for the order rows were added."""
+        return [dict(item) for item in self._sort]
+
+    @Property(str, notify=tableChanged)
+    def sortWords(self) -> str:  # noqa: N802
+        """The sort in plain words, like "Age, highest first"; blank when unsorted."""
+        return sort_words(self._field_objects(), self._sort)
+
+    def _field_objects(self) -> list[Field]:
+        return [Field(name=f["name"], type=f["type"], label=f["label"]) for f in self._fields]
 
     @Property(int, notify=tableChanged)
     def allRows(self) -> int:  # noqa: N802
@@ -326,21 +369,21 @@ class Bridge(QObject):
     @Property(str, notify=tableChanged)
     def currentView(self) -> str:  # noqa: N802
         """The saved view whose filter is on screen, or blank."""
-        return self._view_names.get(self._current_table, "") if self._filter else ""
+        return self._view_names.get(self._current_table, "") if (self._filter or self._sort) else ""
 
     @Slot(str, bool, bool, result="QVariantMap")
     def saveView(self, name: str, replace: bool, default: bool) -> dict:  # noqa: N802
         """Keep the filter on screen under a name. A taken name needs `replace`."""
         if self._storage is None or not self._current_table:
             return {"ok": False, "error": "Pick a table first."}
-        if not self._filter:
-            return {"ok": False, "error": "Apply a filter first, then save it as a view."}
+        if not self._filter and not self._sort:
+            return {"ok": False, "error": "Apply a filter or a sort first, then save it as a view."}
         existing = views.get_view(self._storage, self._current_table, name)
         if existing and not replace:
             return {"ok": False, "needsConfirm": True, "name": existing["name"]}
         try:
             view = views.save_view(self._storage, self._current_table, name, self._filter,
-                                   replace=replace, default=default or None)
+                                   replace=replace, default=default or None, sort=self._sort)
         except JubakoError as error:
             return {"ok": False, "error": str(error)}
         self._view_names[self._current_table] = view["name"]
@@ -356,14 +399,16 @@ class Bridge(QObject):
         view = views.get_view(self._storage, self._current_table, name)
         if view is None:
             return {"ok": False, "error": f"There is no view called \u201c{name}\u201d."}
-        fields = [Field(name=f["name"], type=f["type"], label=f["label"]) for f in self._fields]
+        fields = self._field_objects()
         try:
             spec = normalise_filter(fields, view.get("filter"))
+            order = normalise_sort(fields, view.get("sort"))
         except JubakoError:
             views.delete_view(self._storage, self._current_table, name)
             self.tableChanged.emit()
             return {"ok": False, "error": f"The view \u201c{name}\u201d used a field that is gone, so it was removed."}
-        self._filters[self._current_table] = spec
+        self._set_filter_state(spec)
+        self._sorts[self._current_table] = order
         self._view_names[self._current_table] = view["name"]
         return self.selectTable(self._current_table)
 
@@ -401,7 +446,8 @@ class Bridge(QObject):
         if view is None:
             return {"ok": False, "error": f"There is no view called \u201c{name}\u201d."}
         try:
-            views.save_view(self._storage, self._current_table, name, view["filter"], replace=True, default=default)
+            views.save_view(self._storage, self._current_table, name, view.get("filter"), replace=True,
+                            default=default, sort=view.get("sort"))
         except JubakoError as error:
             return {"ok": False, "error": str(error)}
         self.tableChanged.emit()
@@ -409,26 +455,48 @@ class Bridge(QObject):
 
     @Slot(result="QVariantList")
     def filterOps(self) -> list[dict[str, Any]]:  # noqa: N802
-        return [{"key": op, "label": OP_WORDS[op], "needsValue": op in ("is", "is_not", "contains")} for op in OPS]
+        """Every match there is, in plain words."""
+        return [{"key": op, "label": op_words(op), "needsValue": op in NEEDS_VALUE} for op in OPS]
+
+    @Slot(str, result="QVariantList")
+    def filterOpsFor(self, field_type: str) -> list[dict[str, Any]]:  # noqa: N802
+        """The matches that fit a field of this type: no "contains" on a number, "is after" for a date."""
+        return [{"key": op, "label": op_words(op, field_type), "needsValue": op in NEEDS_VALUE}
+                for op in ops_for(field_type or "text")]
 
     @Slot(str, str, str, result="QVariantMap")
     def setFilter(self, field: str, op: str, value: str) -> dict:  # noqa: N802
         """Show only rows where <field> <op> <value>. Remembered per table while the database is open."""
+        return self.setFilterRules("all", [{"field": field, "op": op, "value": value}])
+
+    @Slot(str, "QVariantList", result="QVariantMap")
+    def setFilterRules(self, match: str, rules: list) -> dict:  # noqa: N802
+        """Show only rows that meet all (or any) of these rules. Each rule is {field, op, value}."""
         if self._storage is None or not self._current_table:
             return {"ok": False, "error": "Pick a table first."}
-        fields = [Field(name=f["name"], type=f["type"], label=f["label"]) for f in self._fields]
+        clean = []
+        for rule in rules:
+            rule = dict(rule)
+            if rule.get("op") not in NEEDS_VALUE:
+                rule["value"] = None
+            clean.append(rule)
         try:
-            spec = normalise_filter(fields, {"field": field, "op": op, "value": value})
+            spec = normalise_filter(self._field_objects(), {"match": match or "all", "rules": clean})
         except JubakoError as error:
             return {"ok": False, "error": str(error)}
-        if spec:
-            if spec != self._filters.get(self._current_table):
-                self._view_names[self._current_table] = ""
-            self._filters[self._current_table] = spec
-        else:
-            self._filters.pop(self._current_table, None)
-            self._view_names[self._current_table] = ""
+        self._set_filter_state(spec)
         return self.selectTable(self._current_table)
+
+    def _set_filter_state(self, spec: dict[str, Any] | None) -> None:
+        """Remember a new filter for the current table; a changed rule detaches it from its view."""
+        table = self._current_table
+        if spec:
+            if spec != self._filters.get(table):
+                self._view_names[table] = ""
+            self._filters[table] = spec
+        else:
+            if self._filters.pop(table, None) is not None:
+                self._view_names[table] = ""
 
     @Slot(result="QVariantMap")
     def clearFilter(self) -> dict:  # noqa: N802
@@ -436,6 +504,35 @@ class Bridge(QObject):
             return {"ok": False, "error": "Pick a table first."}
         self._filters.pop(self._current_table, None)
         self._view_names[self._current_table] = ""
+        return self.selectTable(self._current_table)
+
+    @Slot(str, result="QVariantMap")
+    def sortBy(self, field: str) -> dict:  # noqa: N802
+        """A tap on a column heading: sort by it going up, then down, then back to unsorted."""
+        if self._storage is None or not self._current_table:
+            return {"ok": False, "error": "Pick a table first."}
+        current = self._sorts.get(self._current_table) or []
+        if current and current[0]["field"] == field and len(current) == 1:
+            order = [] if current[0]["descending"] else [{"field": field, "descending": True}]
+        else:
+            order = [{"field": field, "descending": False}]
+        return self.setSort(order)
+
+    @Slot("QVariantList", result="QVariantMap")
+    def setSort(self, order: list) -> dict:  # noqa: N802
+        """Sort the current table by these fields: [{field, descending}]. Empty for unsorted."""
+        if self._storage is None or not self._current_table:
+            return {"ok": False, "error": "Pick a table first."}
+        try:
+            spec = normalise_sort(self._field_objects(), [dict(item) for item in order])
+        except JubakoError as error:
+            return {"ok": False, "error": str(error)}
+        if spec != (self._sorts.get(self._current_table) or []):
+            self._view_names[self._current_table] = ""
+        if spec:
+            self._sorts[self._current_table] = spec
+        else:
+            self._sorts.pop(self._current_table, None)
         return self.selectTable(self._current_table)
 
     @Slot(str, result=str)
@@ -838,14 +935,18 @@ class Bridge(QObject):
                 except JubakoError:
                     default = None
                 if default:
-                    self._filters[table] = default["filter"]
+                    if default.get("filter"):
+                        self._filters[table] = default["filter"]
+                    if default.get("sort"):
+                        self._sorts[table] = default["sort"]
                     self._view_names[table] = default["name"]
         where = self._filters.get(table)
         try:
-            page = self._storage.list_rows(table, limit=PAGE_SIZE, where=where)
+            page = self._storage.list_rows(table, limit=PAGE_SIZE, where=where, sort=self._sorts.get(table))
         except JubakoError:
-            # A filter that no longer fits (its field was renamed or deleted) is dropped, not fatal.
+            # A filter or sort that no longer fits (its field was renamed or deleted) is dropped, not fatal.
             self._filters.pop(table, None)
+            self._sorts.pop(table, None)
             where = None
             try:
                 page = self._storage.list_rows(table, limit=PAGE_SIZE)
@@ -854,6 +955,7 @@ class Bridge(QObject):
         self._rows.load(page)
         self._current_table = table
         self._filter = page.get("filter")
+        self._sort = list(page.get("sort") or [])
         self._all_rows = page.get("total_all", page["total"])
         self._fields = [dict(field) for field in page["fields"]]
         try:
@@ -928,6 +1030,8 @@ class Bridge(QObject):
         self._shown = self._total = 0
         self._filters = {}
         self._filter = None
+        self._sorts = {}
+        self._sort = []
         self._view_names = {}
         self._defaulted = set()
         self._rows.clear()
@@ -945,6 +1049,8 @@ class Bridge(QObject):
         self._storage = storage
         self._filters = {}
         self._filter = None
+        self._sorts = {}
+        self._sort = []
         self._view_names = {}
         self._defaulted = set()
         info = storage.describe()
@@ -977,6 +1083,7 @@ class Bridge(QObject):
             self._rows.clear()
             self._current_table = ""
             self._filter = None
+            self._sort = []
             self._shown = self._total = self._all_rows = 0
             self.tableChanged.emit()
 

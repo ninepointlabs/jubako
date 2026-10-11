@@ -61,20 +61,49 @@ _CONNECTION_SCHEMA = {
     "additionalProperties": False,
 }
 
-_FILTER_SCHEMA = {
+_OPS = ["is", "is_not", "empty", "not_empty", "contains", "starts_with",
+        "more_than", "less_than", "at_least", "at_most"]
+
+_RULE_SCHEMA = {
     "type": "object",
-    "description": (
-        "Show only rows where a field matches: {field, op, value}. op is one of "
-        "is, is_not, empty, not_empty, contains (contains: words fields only). "
-        "Yes/no fields accept yes/no/true/false/1/0. 'is_not' keeps blank rows."
-    ),
     "properties": {
         "field": {"type": "string"},
-        "op": {"type": "string", "enum": ["is", "is_not", "empty", "not_empty", "contains"]},
+        "op": {"type": "string", "enum": _OPS},
         "value": {},
     },
     "required": ["field", "op"],
     "additionalProperties": False,
+}
+
+_FILTER_SCHEMA = {
+    "type": "object",
+    "description": (
+        "Show only rows that match. Either one rule {field, op, value}, or several: "
+        "{match: 'all' | 'any', rules: [{field, op, value}, ...]} (at most 10). op is one of "
+        "is, is_not, empty, not_empty, contains, starts_with (those two: words fields only), "
+        "more_than, less_than, at_least, at_most (numbers and dates; for a date more_than means "
+        "after). Yes/no fields accept yes/no/true/false/1/0. 'is_not' keeps blank rows."
+    ),
+    "properties": {
+        "field": {"type": "string"},
+        "op": {"type": "string", "enum": _OPS},
+        "value": {},
+        "match": {"type": "string", "enum": ["all", "any"]},
+        "rules": {"type": "array", "items": _RULE_SCHEMA, "maxItems": 10},
+    },
+    "additionalProperties": False,
+}
+
+_SORT_SCHEMA = {
+    "type": "array",
+    "description": "Sort by up to three fields, in order. Blanks always go last.",
+    "items": {
+        "type": "object",
+        "properties": {"field": {"type": "string"}, "descending": {"type": "boolean", "default": False}},
+        "required": ["field"],
+        "additionalProperties": False,
+    },
+    "maxItems": 3,
 }
 
 _TARGET_PROPERTIES = {
@@ -187,6 +216,7 @@ def tool_save_view(arguments: dict[str, Any]) -> dict[str, Any]:
         view = views.save_view(
             storage, arguments["table"], arguments["name"], arguments.get("filter"),
             replace=bool(arguments.get("replace", False)), default=arguments.get("default"),
+            sort=arguments.get("sort"),
         )
     view["saved"] = True
     if view.get("replaced"):
@@ -267,6 +297,7 @@ def tool_list_rows(arguments: dict[str, Any]) -> dict[str, Any]:
             order_by=arguments.get("order_by"),
             descending=bool(arguments.get("descending", False)),
             where=arguments.get("filter"),
+            sort=arguments.get("sort"),
         )
 
 
@@ -512,8 +543,9 @@ TOOLS: list[dict[str, Any]] = [
                 "table": {"type": "string"},
                 "limit": {"type": "integer", "default": 100, "maximum": 5000},
                 "offset": {"type": "integer", "default": 0},
-                "order_by": {"type": "string", "description": "A field name, or 'id'."},
+                "order_by": {"type": "string", "description": "A field name, or 'id'. Or use sort."},
                 "descending": {"type": "boolean", "default": False},
+                "sort": _SORT_SCHEMA,
                 "filter": _FILTER_SCHEMA,
             },
             "required": ["table"],
@@ -698,7 +730,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "list_views",
-        "description": "Saved views: named filters kept in the database, per table. Apply one with list_rows and its filter.",
+        "description": "Saved views: named filters and sorts kept in the database, per table. Apply one with list_rows and its filter and sort.",
         "inputSchema": {
             "type": "object",
             "properties": {**_TARGET_PROPERTIES, "table": {"type": "string", "description": "Only this table's views."}},
@@ -708,7 +740,7 @@ TOOLS: list[dict[str, Any]] = [
     },
     {
         "name": "get_view",
-        "description": "One saved view: its filter and whether it is the table's default.",
+        "description": "One saved view: its filter, its sort and whether it is the table's default.",
         "inputSchema": {
             "type": "object",
             "properties": {**_TARGET_PROPERTIES, "table": {"type": "string"}, "name": {"type": "string"}},
@@ -720,8 +752,8 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "save_view",
         "description": (
-            "Keep a filter under a name, like 'Still here' = Moved is not Yes. Refuses a taken name "
-            "unless replace is true. default: true makes it the view the table opens with."
+            "Keep a filter and/or a sort under a name, like 'Still here' = Moved is not Yes. Refuses a "
+            "taken name unless replace is true. default: true makes it the view the table opens with."
         ),
         "inputSchema": {
             "type": "object",
@@ -730,10 +762,11 @@ TOOLS: list[dict[str, Any]] = [
                 "table": {"type": "string"},
                 "name": {"type": "string"},
                 "filter": _FILTER_SCHEMA,
+                "sort": _SORT_SCHEMA,
                 "replace": {"type": "boolean", "default": False},
                 "default": {"type": "boolean"},
             },
-            "required": ["table", "name", "filter"],
+            "required": ["table", "name"],
             "additionalProperties": False,
         },
         "handler": tool_save_view,

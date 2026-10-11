@@ -288,3 +288,21 @@ def test_view_tools(sandbox, pets_csv):
         HANDLERS["save_view"]({"path": db, "table": "pets", "name": "Still here", "filter": {"field": "moved", "op": "empty"}})
     assert HANDLERS["delete_view"]({"path": db, "table": "pets", "name": "Still here"})["deleted"] is True
     assert HANDLERS["list_views"]({"path": db, "table": "pets"})["views"] == []
+
+
+def test_rules_and_sort_through_the_tools(sandbox, pets_csv):
+    from jubako_mcp.server import HANDLERS
+
+    db = str(sandbox / "rules.jubadb")
+    HANDLERS["create_database"]({"title": "R", "path": db})
+    HANDLERS["import_spreadsheet"]({"path": db, "file": str(pets_csv)})
+    rows = HANDLERS["list_rows"]({
+        "path": db, "table": "pets",
+        "filter": {"match": "any", "rules": [{"field": "age", "op": "more_than", "value": 3},
+                                             {"field": "adopted_on", "op": "after", "value": "2024-01-01"}]},
+        "sort": [{"field": "name", "descending": True}],
+    })
+    assert [row[1] for row in rows["rows"]] == ["Shadow", "Rex", "Pip"]
+    assert rows["sort"] == [{"field": "name", "descending": True}]
+    saved = HANDLERS["save_view"]({"path": db, "table": "pets", "name": "Youngest", "sort": [{"field": "age"}]})
+    assert saved["words"] == "sorted by age, lowest first" and saved["filter"] is None

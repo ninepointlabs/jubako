@@ -1,6 +1,6 @@
 """Saved views: a named "Show rows where…" that lives in the database file.
 
-A view is one table, one name, one filter (see `filters.py`). It is kept in
+A view is one table, one name, a filter and/or a sort (see `filters.py`). It is kept in
 Jubako's own info table under `view:<table>:<name>`, so it travels with
 the `.jubadb`. One view per table may be the default: the one the table
 opens with.
@@ -12,7 +12,14 @@ import json
 from typing import Any
 
 from .errors import JubakoError
-from .filters import filter_words, normalise_filter
+from .filters import (
+    filter_fields,
+    filter_words,
+    normalise_filter,
+    normalise_sort,
+    rename_in_filter,
+    sort_words,
+)
 from .storage.base import Storage
 
 VIEW_KEY = "view:"
@@ -30,8 +37,9 @@ def save_view(
     *,
     replace: bool = False,
     default: bool | None = None,
+    sort: Any = None,
 ) -> dict[str, Any]:
-    """Keep a filter under a name. Refuses a blank name, and a taken one unless `replace`."""
+    """Keep a filter (and/or a sort) under a name. Refuses a blank name, and a taken one unless `replace`."""
     name = (name or "").strip()
     if not name:
         raise JubakoError("Give the view a name, like “Still here”.")
@@ -39,8 +47,9 @@ def save_view(
         raise JubakoError("A view's name cannot contain a colon, and must be 60 letters or fewer.")
     info = storage.describe_table(table)
     spec = normalise_filter(info.fields, filter_spec)
-    if spec is None:
-        raise JubakoError("Apply a filter first, then save it as a view.")
+    order = normalise_sort(info.fields, sort)
+    if spec is None and not order:
+        raise JubakoError("Apply a filter or a sort first, then save it as a view.")
     existing = get_view(storage, table, name)
     if existing and not replace:
         raise JubakoError(f"There is already a view called “{name}” for {table}. Pick another name, or replace it.")
@@ -50,8 +59,8 @@ def save_view(
         for other in list_views(storage, table):
             if other["name"] != name and other.get("default"):
                 _write(storage, {**other, "default": False})
-    view = {"name": name, "table": table, "filter": spec, "default": bool(default),
-            "words": filter_words(info.fields, spec)}
+    view = {"name": name, "table": table, "filter": spec, "sort": order, "default": bool(default),
+            "words": view_words(info.fields, spec, order)}
     _write(storage, view)
     view["replaced"] = bool(existing)
     return view
@@ -115,23 +124,51 @@ def rename_view(storage: Storage, table: str, old: str, new: str) -> dict[str, A
     return view
 
 
+def view_words(fields: list, filter_spec: dict[str, Any] | None, sort: list[dict[str, Any]] | None) -> str:
+    """A view in words: "Moved is not Yes · sorted by Age, highest first"."""
+    parts = []
+    if filter_spec:
+        parts.append(filter_words(fields, filter_spec))
+    if sort:
+        parts.append("sorted by " + sort_words(fields, sort))
+    return " · ".join(parts)
+
+
 def retarget_views(storage: Storage, table: str, old: str, new: str | None) -> list[str]:
-    """A field was renamed (`new`) or dropped (`new` None): fix or forget the views on it."""
+    """A field was renamed (`new`) or dropped (`new` None): fix or forget the views on it.
+
+    A dropped field takes with it every view whose rules look at it (dropping
+    just that rule would quietly show more rows than the view promised); a
+    view that only sorted by it keeps its rules and loses that sort.
+    """
     touched = []
     for view in list_views(storage, table):
-        spec = view.get("filter") or {}
-        if spec.get("field") != old:
+        spec = view.get("filter") or None
+        order = list(view.get("sort") or [])
+        in_filter = old in filter_fields(spec)
+        in_sort = any(item.get("field") == old for item in order)
+        if not in_filter and not in_sort:
             continue
         if new:
-            view["filter"] = {**spec, "field": new}
-            try:
-                fields = storage.describe_table(table).fields
-                view["words"] = filter_words(fields, normalise_filter(fields, view["filter"]))
-            except JubakoError:
-                pass
-            _write(storage, view)
-        else:
+            view["filter"] = rename_in_filter(spec, old, new)
+            view["sort"] = [{**item, "field": new} if item.get("field") == old else item for item in order]
+        elif in_filter:
             _forget(storage, _key(table, view["name"]))
+            touched.append(view["name"])
+            continue
+        else:
+            view["sort"] = [item for item in order if item.get("field") != old]
+            if not view["filter"] and not view["sort"]:
+                _forget(storage, _key(table, view["name"]))
+                touched.append(view["name"])
+                continue
+        try:
+            fields = storage.describe_table(table).fields
+            view["words"] = view_words(fields, normalise_filter(fields, view["filter"]),
+                                       normalise_sort(fields, view["sort"]))
+        except JubakoError:
+            pass
+        _write(storage, view)
         touched.append(view["name"])
     return touched
 

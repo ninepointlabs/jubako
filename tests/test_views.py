@@ -60,7 +60,7 @@ def test_names_are_checked(pets):
         views.save_view(pets, "pets", "  ", STILL_HERE)
     with pytest.raises(JubakoError, match="colon"):
         views.save_view(pets, "pets", "a:b", STILL_HERE)
-    with pytest.raises(JubakoError, match="Apply a filter first"):
+    with pytest.raises(JubakoError, match="Apply a filter or a sort first"):
         views.save_view(pets, "pets", "Nothing", None)
     views.save_view(pets, "pets", "Still here", STILL_HERE)
     with pytest.raises(JubakoError, match="already a view"):
@@ -102,3 +102,37 @@ def test_views_follow_a_field_rename_and_go_with_a_drop(pets):
     result = schema.drop_table(pets, "pets")
     assert result["views_forgotten"] == ["Young"]
     assert views.list_views(pets) == []
+
+
+def test_views_keep_a_sort_and_several_rules(database, pets_csv):
+    from jubako import schema
+    from jubako.importer import import_spreadsheet
+
+    import_spreadsheet(database, str(pets_csv))
+    rules = {"match": "any", "rules": [
+        {"field": "age", "op": "more_than", "value": "5"},
+        {"field": "age", "op": "empty"},
+    ]}
+    view = views.save_view(database, "pets", "Old or unknown", rules, sort=[{"field": "name", "descending": True}])
+    assert view["words"] == "age is more than 5 or age is empty · sorted by name, Z to A"
+    kept = views.get_view(database, "pets", "Old or unknown")
+    page = database.list_rows("pets", where=kept["filter"], sort=kept["sort"])
+    assert [row[1] for row in page["rows"]] == ["Shadow", "Pip"]
+
+    sorted_only = views.save_view(database, "pets", "Heaviest", None, sort=[{"field": "weight_kg", "descending": True}])
+    assert sorted_only["filter"] is None
+
+    # Renaming a field follows into the rules and the sort.
+    schema.rename_field(database, "pets", "age", "years")
+    kept = views.get_view(database, "pets", "Old or unknown")
+    assert [rule["field"] for rule in kept["filter"]["rules"]] == ["years", "years"]
+    # Dropping a field a view only sorts by keeps the view, without that sort ...
+    schema.rename_field(database, "pets", "name", "pet_name")
+    schema.drop_field(database, "pets", "pet_name")
+    kept = views.get_view(database, "pets", "Old or unknown")
+    assert kept["sort"] == [] and kept["words"] == "age is more than 5 or age is empty"  # the label stays
+    # ... and a view left with nothing to do goes; one whose rules used the field goes too.
+    schema.drop_field(database, "pets", "weight_kg")
+    assert views.get_view(database, "pets", "Heaviest") is None
+    schema.drop_field(database, "pets", "years")
+    assert views.get_view(database, "pets", "Old or unknown") is None
