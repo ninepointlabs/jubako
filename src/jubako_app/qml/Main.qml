@@ -79,6 +79,7 @@ ApplicationWindow {
     function startOpen() { openDbDialog.open() }
     function startImport() { importDialog.open() }
     function goHome() { Bridge.closeDatabase() }
+    function showAbout() { aboutDialog.open() }
 
     function openRecent(index) {
         const r = Bridge.openRecent(index)
@@ -187,6 +188,7 @@ ApplicationWindow {
     }
 
     ImportDialog { id: importWizard }
+    AboutDialog { id: aboutDialog }
     ReportDialog { id: reportDialog }
 
     FileDialog {

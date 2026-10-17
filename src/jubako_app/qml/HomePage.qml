@@ -18,10 +18,15 @@ Page {
         anchors.margins: 40
         spacing: 20
 
-        Label {
-            text: "Jubako"
-            font.pointSize: 30
-            font.bold: true
+        RowLayout {
+            Layout.fillWidth: true
+            Label {
+                Layout.fillWidth: true
+                text: "Jubako"
+                font.pointSize: 30
+                font.bold: true
+            }
+            ActionButton { text: "About"; objectName: "homeAbout"; onClicked: win.showAbout() }
         }
         Label {
             Layout.fillWidth: true
