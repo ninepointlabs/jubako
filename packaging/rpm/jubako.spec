@@ -1,5 +1,5 @@
 Name:           jubako
-Version:        0.4.5
+Version:        0.4.6
 Release:        1%{?dist}
 Summary:        A simple desktop database, in the spirit of Microsoft Access
 License:        MIT
@@ -40,6 +40,8 @@ rm -rf %{buildroot}%{_docdir}/%{name} %{buildroot}%{_datadir}/licenses/%{name}
 %{_datadir}/icons/hicolor/scalable/apps/jubako.svg
 
 %changelog
+* Sat Oct 17 2026 Nine Point Labs <179739321+ninepointlabs@users.noreply.github.com> - 0.4.6-1
+- An About screen, from the home screen and the Database... menu.
 * Sun Oct 11 2026 Nine Point Labs <179739321+ninepointlabs@users.noreply.github.com> - 0.4.5-1
 - The Contacts template puts each contact in a group.
 * Sun Oct 11 2026 Nine Point Labs <179739321+ninepointlabs@users.noreply.github.com> - 0.4.4-1

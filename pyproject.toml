@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "jubako"
-version = "0.4.5"
+version = "0.4.6"
 description = "A simple desktop database for Omarchy Linux, in the spirit of Microsoft Access."
 readme = "README.md"
 license = { file = "LICENSE" }

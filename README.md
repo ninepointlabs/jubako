@@ -120,13 +120,20 @@ for Arch (and Omarchy), Debian / Ubuntu, and Fedora. They pull in Python and
 Qt from your distro and put Jubako in your app launcher.
 
 ```sh
-sudo pacman -U jubako-0.4.5-1-any.pkg.tar.zst      # Arch, Omarchy
-sudo apt install ./jubako_0.4.5-1_all.deb          # Debian 13+, Ubuntu 26.04+
-sudo dnf install ./jubako-0.4.5-1.noarch.rpm       # Fedora 44+
+sudo pacman -U jubako-0.4.6-1-any.pkg.tar.zst      # Arch, Omarchy
+sudo apt install ./jubako_0.4.6-1_all.deb          # Debian 13+, Ubuntu 26.04+
+sudo dnf install ./jubako-0.4.6-1.noarch.rpm       # Fedora 44+
 ```
 
 Excel files need `openpyxl`: apt and dnf install it along with Jubako, and on
 Arch add `python-openpyxl`.
+
+Or let [autonomix-cli](https://github.com/ninepointlabs/autonomix-cli) fetch
+the right package for your distro and keep it up to date:
+
+```sh
+autonomix-cli add https://github.com/ninepointlabs/jubako
+```
 
 ### From source
 
@@ -289,7 +296,7 @@ JUBAKO_PASSWORD=secret .venv/bin/python scripts/smoke_remote.py postgres \
 scripts/build-packages.sh --test    # Arch, .deb and .rpm into dist/, then install-test each
 ```
 
-It builds in Docker containers from the committed tree (`--ref v0.4.5` for a
+It builds in Docker containers from the committed tree (`--ref v0.4.6` for a
 tag), then installs each package in a fresh Debian, Ubuntu, Fedora and Arch
 container and checks the command line, the MCP server and the window. When
 `pkgver` changes, release the tag, then set `sha256sums` in

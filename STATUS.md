@@ -1,6 +1,10 @@
 # Jubako — status
 
-**Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-11.**
+**Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-17.**
+
+## Release 0.4.6 — 2026-10-17
+
+The About screen, as Arch, .deb and .rpm packages.
 
 ## Release 0.4.5 — 2026-10-11
 
