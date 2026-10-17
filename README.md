@@ -179,6 +179,9 @@ under a name and applies it again later. **More…** holds the rest:
 the whole database file.
 **Print report** opens the report designer with a live preview, **Print…**
 and **Save PDF…**. **Export…** writes the table as CSV or Excel.
+**About** (on the home screen, and at the bottom of the **Database…** menu)
+shows the version, license, Nine Point Labs and the support address,
+[help@ninepointlabs.com](mailto:help@ninepointlabs.com).
 
 ### The command line
 

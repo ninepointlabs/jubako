@@ -260,6 +260,8 @@ Page {
                         enabled: Bridge.isLocalFile
                         onTriggered: confirmDeleteDatabase.open()
                     }
+                    MenuSeparator {}
+                    MenuItem { text: "About Jubako"; objectName: "menuAbout"; onTriggered: win.showAbout() }
                 }
             }
             ActionButton {

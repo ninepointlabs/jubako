@@ -220,6 +220,7 @@ def test_the_window_loads_and_shows_an_imported_table(app, bridge, sandbox, pets
 
     from jubako_app.theme import Theme
 
+    from jubako_app.about import AppInfo
     from jubako_app.report_bridge import Report, ReportImageProvider
 
     engine = QQmlApplicationEngine()
@@ -228,6 +229,7 @@ def test_the_window_loads_and_shows_an_imported_table(app, bridge, sandbox, pets
     engine.rootContext().setContextProperty("Bridge", bridge)
     engine.rootContext().setContextProperty("Report", Report(bridge.storage, provider))
     engine.rootContext().setContextProperty("Theme", Theme(app))
+    engine.rootContext().setContextProperty("AppInfo", AppInfo(engine))
     engine.load(QUrl.fromLocalFile(str(QML_DIR / "Main.qml")))
     assert len(engine.rootObjects()) == 1, "Main.qml did not load"
     window = engine.rootObjects()[0]
@@ -639,6 +641,7 @@ def test_add_field_through_the_window(app, bridge, sandbox, pets_csv):
     from PySide6.QtCore import Q_ARG, QMetaObject
     from PySide6.QtQml import QQmlApplicationEngine
 
+    from jubako_app.about import AppInfo
     from jubako_app.report_bridge import Report, ReportImageProvider
     from jubako_app.theme import Theme
 
@@ -648,6 +651,7 @@ def test_add_field_through_the_window(app, bridge, sandbox, pets_csv):
     engine.rootContext().setContextProperty("Bridge", bridge)
     engine.rootContext().setContextProperty("Report", Report(bridge.storage, provider))
     engine.rootContext().setContextProperty("Theme", Theme(app))
+    engine.rootContext().setContextProperty("AppInfo", AppInfo(engine))
     engine.load(QUrl.fromLocalFile(str(QML_DIR / "Main.qml")))
     window = engine.rootObjects()[0]
     assert bridge.importIntoNew(str(pets_csv), str(sandbox / "ui.jubadb"))["ok"] is True
@@ -723,6 +727,7 @@ def _find_item(window, name):
 def _load_window(app, bridge):
     from PySide6.QtQml import QQmlApplicationEngine
 
+    from jubako_app.about import AppInfo
     from jubako_app.report_bridge import Report, ReportImageProvider
     from jubako_app.theme import Theme
 
@@ -735,6 +740,7 @@ def _load_window(app, bridge):
     engine.rootContext().setContextProperty("Report", report)
     theme = Theme(app)
     engine.rootContext().setContextProperty("Theme", theme)
+    engine.rootContext().setContextProperty("AppInfo", AppInfo(engine))
     engine.load(QUrl.fromLocalFile(str(QML_DIR / "Main.qml")))
     engine._report = report
     return engine, engine.rootObjects()[0], theme
@@ -1210,6 +1216,60 @@ def test_the_window_adds_and_makes_lookups_and_the_form_picks_from_a_list(app, b
         assert box is not None and box.property("currentText") == "Ann"
         ask("formView.set('customer', 2); formView.save()", form)
         assert bridge.rows.data(bridge.rows.index(0, 2)) == "Bo"
+    finally:
+        engine.deleteLater()
+        app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+def test_about_facts_agree_with_the_license():
+    from jubako import __version__
+    from jubako_app import about
+
+    root = Path(__file__).resolve().parents[1]
+    license_text = (root / "LICENSE").read_text()
+    # The app ships its own copy for the About dialog; it must not drift.
+    assert about.LICENSE_FILE.read_text() == license_text
+    assert license_text.startswith("MIT License")
+    assert about.LICENSE_NAME == "MIT License"
+    assert about.COPYRIGHT.replace("©", "Copyright (c)") in license_text
+    assert about.SUPPORT_EMAIL == "help@ninepointlabs.com"
+    assert about.AppInfo().property("version") == __version__
+
+
+def test_about_opens_from_home_and_from_the_database_menu(app, bridge, sandbox, pets_csv):
+    from PySide6.QtCore import QEvent
+    from PySide6.QtQml import QQmlEngine, QQmlExpression
+
+    engine, window, _ = _load_window(app, bridge)
+    try:
+        app.processEvents()
+        about = window.findChild(QObject, "aboutDialog")
+        home_button = _find_item(window, "homeAbout")
+        assert home_button is not None and about.property("visible") is False
+        home_button.clicked.emit()
+        app.processEvents()
+        assert about.property("visible") is True
+        text = window.findChild(QObject, "aboutLicenseText")
+        assert text.property("text").startswith("MIT License")
+        assert text.property("visible") is False
+        about.setProperty("showLicense", True)
+        app.processEvents()
+        assert text.property("visible") is True
+        privacy = window.findChild(QObject, "aboutPrivacy").property("text")
+        assert "No accounts, no telemetry" in privacy and "stdin/stdout" in privacy
+        QQmlExpression(QQmlEngine.contextForObject(window), window, "aboutDialog.close()").evaluate()
+        app.processEvents()
+        assert about.property("visible") is False
+
+        # Inside a database, it is the last item of the Database… menu.
+        assert bridge.importIntoNew(str(pets_csv), str(sandbox / "about.jubadb"))["ok"] is True
+        app.processEvents()
+        item = window.findChild(QObject, "menuAbout")
+        assert item is not None
+        item.triggered.emit()
+        app.processEvents()
+        assert about.property("visible") is True
+        assert about.property("showLicense") is False
     finally:
         engine.deleteLater()
         app.sendPostedEvents(None, QEvent.Type.DeferredDelete)

@@ -18,6 +18,7 @@ from PySide6.QtWidgets import QApplication
 
 from jubako import __version__
 
+from .about import AppInfo
 from .bridge import Bridge
 from .report_bridge import Report, ReportImageProvider
 from .theme import Theme
@@ -61,6 +62,7 @@ def main(argv: list[str] | None = None) -> int:
     engine.rootContext().setContextProperty("Bridge", bridge)
     engine.rootContext().setContextProperty("Report", report)
     engine.rootContext().setContextProperty("Theme", theme)
+    engine.rootContext().setContextProperty("AppInfo", AppInfo(engine))
     engine.load(QUrl.fromLocalFile(str(QML_DIR / "Main.qml")))
     if not engine.rootObjects():
         print("Jubako could not load its window.", file=sys.stderr)
