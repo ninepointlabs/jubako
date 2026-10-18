@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://jubako.ninepointlabs.com/sitemap.xml
