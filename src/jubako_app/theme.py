@@ -12,8 +12,11 @@ lives on, plus `theme.name` (rewritten in place), and re-arm the inner watches
 after every change. Events come in bursts, so a short timer collects them and
 the colours are read once, after the new directory is in place.
 
-When the file is missing (not on Omarchy, or a very old install) a plain dark
-palette is used instead.
+When the file is missing (not on Omarchy, or a very old install) a plain
+palette is used instead: dark, or light when the desktop says it prefers light
+(the freedesktop `color-scheme` setting, which Qt reads for us). Older Omarchy
+installs kept the theme under `~/.config/omarchy/current/`, so that is looked at
+too. Nothing is watched that does not exist.
 """
 
 from __future__ import annotations
@@ -44,13 +47,49 @@ FALLBACK = {
     "blue": "#7daea3",
 }
 
+LIGHT_FALLBACK = {
+    "mode": "light",
+    "accent": "#3d7a70",
+    "selection": "#d5c4a1",
+    "muted": "#a89984",
+    "background": "#fbf1c7",
+    "dark_background": "#f2e5bc",
+    "darker_background": "#ebdbb2",
+    "lighter_background": "#f9f5d7",
+    "foreground": "#3c3836",
+    "dark_foreground": "#7c6f64",
+    "light_foreground": "#504945",
+    "bright_foreground": "#282828",
+    "red": "#c14a4a",
+    "yellow": "#b47109",
+    "green": "#6c782e",
+    "blue": "#45707a",
+}
+
 COLOR_KEYS = tuple(key for key in FALLBACK if key != "mode")
 
 
 def current_dir() -> Path:
-    """`~/.local/state/omarchy/current/` — the one path that survives a theme change."""
+    """`~/.local/state/omarchy/current/` — the one path that survives a theme change.
+
+    Before Omarchy moved it, this lived at `~/.config/omarchy/current/`; that is
+    used only when the new one is absent and the old one is there.
+    """
     base = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
-    return Path(base) / "omarchy" / "current"
+    current = Path(base) / "omarchy" / "current"
+    if not current.exists():
+        config = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+        legacy = Path(config) / "omarchy" / "current"
+        if (legacy / "theme").exists():
+            return legacy
+    return current
+
+
+def system_fallback(app: QGuiApplication | None) -> dict[str, str]:
+    """The palette to use without an Omarchy theme: light if the desktop asks for light."""
+    if app is not None and app.styleHints().colorScheme() == Qt.ColorScheme.Light:
+        return LIGHT_FALLBACK
+    return FALLBACK
 
 
 def theme_dir() -> Path:
@@ -62,10 +101,10 @@ def colors_file() -> Path:
     return Path(override) if override else theme_dir() / "colors.toml"
 
 
-def load_colors(path: Path | None = None) -> dict[str, str]:
+def load_colors(path: Path | None = None, fallback: dict[str, str] | None = None) -> dict[str, str]:
     """The theme's colours, with the fallback filling any gap."""
     path = path or colors_file()
-    colors = dict(FALLBACK)
+    colors = dict(fallback or FALLBACK)
     try:
         data = tomllib.loads(path.read_text("utf-8"))
     except (OSError, ValueError):
@@ -125,7 +164,10 @@ class Theme(QObject):
     def __init__(self, app: QGuiApplication | None = None, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._app = app
-        self._colors = load_colors()
+        # Only without an Omarchy theme does the desktop's light/dark choice count. Asked
+        # once, before apply() pins Qt's colour scheme to whatever we pick.
+        self._fallback = FALLBACK if colors_file().exists() else system_fallback(app)
+        self._colors = load_colors(fallback=self._fallback)
         self._settle = QTimer(self)
         self._settle.setSingleShot(True)
         self._settle.setInterval(self.SETTLE_MS)
@@ -163,7 +205,7 @@ class Theme(QObject):
     @Slot()
     def _reload(self) -> None:
         self._watch()
-        fresh = load_colors()
+        fresh = load_colors(fallback=self._fallback)
         if not colors_file().exists():
             # Mid-swap: the new directory is not there yet. Look again shortly.
             self._settle.start()

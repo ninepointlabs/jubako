@@ -22,11 +22,18 @@ COPYRIGHT = "© 2026 Nine Point Labs"
 
 HERE = Path(__file__).resolve().parent
 LICENSE_FILE = HERE / "assets" / "LICENSE.txt"
-# A source checkout has the icon in packaging/; the packages put it in the icon theme.
+# A source checkout has the icon in packaging/; the packages put it in the icon theme,
+# and the AppImage in its own usr/share (it does not add that to XDG_DATA_DIRS).
 ICON_FILES = (
     HERE.parents[1] / "packaging" / "jubako.svg",
     Path("/usr/share/icons/hicolor/scalable/apps/jubako.svg"),
+    *([Path(os.environ["APPDIR"]) / "usr/share/icons/hicolor/scalable/apps/jubako.svg"]
+      if os.environ.get("APPDIR") else []),
 )
+
+
+def icon_file() -> Path | None:
+    return next((path for path in ICON_FILES if path.exists()), None)
 
 
 def python_version() -> str:
@@ -50,10 +57,8 @@ class AppInfo(QObject):
 
     @Property(QUrl, constant=True)
     def icon(self) -> QUrl:
-        for path in ICON_FILES:
-            if path.exists():
-                return QUrl.fromLocalFile(str(path))
-        return QUrl()
+        path = icon_file()
+        return QUrl.fromLocalFile(str(path)) if path else QUrl()
 
     @Property(str, constant=True)
     def licenseText(self) -> str:
