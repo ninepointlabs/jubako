@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Jubako databases, so file managers open them in Jubako. Installed as
+     mime/packages/jubako.xml. `.omadb` is the name from before the rename. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-jubako">
+    <comment>Jubako database</comment>
+    <sub-class-of type="application/vnd.sqlite3"/>
+    <generic-icon name="x-office-spreadsheet"/>
+    <glob pattern="*.jubadb"/>
+    <glob pattern="*.omadb"/>
+    <alias type="application/x-omadb"/>
+  </mime-type>
+</mime-info>
