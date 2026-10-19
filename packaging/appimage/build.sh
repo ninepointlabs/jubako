@@ -138,7 +138,8 @@ while [[ ${#queue[@]} -gt 0 ]]; do
   file="${queue[-1]}"; unset 'queue[-1]'
   while IFS= read -r soname; do
     [[ -z "${have[$soname]:-}" ]] || continue
-    path="$(ldconfig -p | awk -v s="$soname" '$1 == s && /x86-64/ { print $NF; exit }')"
+    # awk reads to the end (no early exit), so ldconfig never dies of SIGPIPE under pipefail.
+    path="$(ldconfig -p | awk -v s="$soname" '$1 == s && /x86-64/ && !found { print $NF; found = 1 }')"
     if [[ -z "$path" ]]; then
       missing+=("$soname (for ${file#"$appdir"/})"); have[$soname]=missing; continue
     fi
