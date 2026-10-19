@@ -18,7 +18,7 @@ from PySide6.QtWidgets import QApplication
 
 from jubako import __version__
 
-from .about import AppInfo
+from .about import AppInfo, icon_file
 from .bridge import Bridge
 from .report_bridge import Report, ReportImageProvider
 from .theme import Theme
@@ -34,7 +34,10 @@ def make_app(argv: list[str]) -> QApplication:
     QQuickStyle.setStyle(os.environ["QT_QUICK_CONTROLS_STYLE"])
     # QApplication rather than QGuiApplication only because the system print
     # dialog is a widget. The UI itself is all QML.
-    app = QApplication(argv)
+    # On X11, Qt names the window's WM_CLASS instance after argv[0], which is
+    # `__main__.py` or wherever the AppImage lives. Docks match it against the
+    # .desktop file's StartupWMClass, so call it by the app id instead.
+    app = QApplication([APP_ID, *argv[1:]])
     app.setApplicationName("Jubako")
     app.setApplicationDisplayName("Jubako")
     app.setOrganizationName("Nine Point Labs")
@@ -42,9 +45,9 @@ def make_app(argv: list[str]) -> QApplication:
     app.setApplicationVersion(__version__)
     # On Wayland this is the app id Hyprland sees, so it must match the .desktop name.
     app.setDesktopFileName(APP_ID)
-    # Installed packages put the icon in the theme; a source checkout has it here.
-    icon = Path(__file__).resolve().parents[2] / "packaging" / "jubako.svg"
-    app.setWindowIcon(QIcon.fromTheme(APP_ID, QIcon(str(icon)) if icon.exists() else QIcon()))
+    # Installed packages put the icon in the theme; a source checkout or the AppImage has a file.
+    icon = icon_file()
+    app.setWindowIcon(QIcon.fromTheme(APP_ID, QIcon(str(icon)) if icon else QIcon()))
     return app
 
 

@@ -1,0 +1,99 @@
+#!/bin/sh
+# Jubako's AppImage launcher.
+#
+#   Jubako.AppImage [file.jubadb]        the window (what the menu entry runs)
+#   Jubako.AppImage app [file.jubadb]    the same, said out loud
+#   Jubako.AppImage cli <command> ...    the `jubako` command line
+#   Jubako.AppImage mcp                  the MCP server, for agents (stdio)
+#   Jubako.AppImage --install-desktop-entry   add Jubako to this user's app menu
+#   Jubako.AppImage --remove-desktop-entry    take it out again
+#
+# A symlink to the AppImage named `jubako-cli` or `jubako-mcp` works like `cli` / `mcp`.
+#
+# Nothing is exported for the app: Python is started with -I and finds its own
+# prefix, and PySide6 finds its Qt plugins and QML modules beside itself, so
+# programs Jubako starts (a mail client from About, say) get the host's
+# environment untouched. No LD_LIBRARY_PATH, PYTHONHOME or QT_PLUGIN_PATH.
+
+set -eu
+
+if [ -z "${APPDIR:-}" ]; then
+    # Run from an extracted AppDir rather than the AppImage.
+    APPDIR="$(dirname "$(readlink -f "$0")")"
+fi
+python="$APPDIR/opt/python3.12/bin/python3.12"
+app_id=jubako
+
+desktop_entry() {
+    action="$1"
+    if [ -z "${APPIMAGE:-}" ]; then
+        echo "Jubako is not running from an AppImage file, so there is nothing for a menu entry to point at." >&2
+        echo "Run the .AppImage itself with $action." >&2
+        exit 1
+    fi
+    data="${XDG_DATA_HOME:-$HOME/.local/share}"
+    apps="$data/applications"
+    icons="$data/icons/hicolor"
+    mime="$data/mime"
+    desktop="$apps/$app_id.desktop"
+
+    if [ "$action" = --install-desktop-entry ]; then
+        mkdir -p "$apps" "$mime/packages"
+        # Exec quotes the path (it may have spaces); `app` keeps the window the
+        # default whatever the AppImage file is called.
+        path="$(printf '%s' "$APPIMAGE" | sed 's/[&|\\]/\\&/g')"
+        sed -e "s|^Exec=.*|Exec=\"$path\" app %f|" \
+            -e "/^\[Desktop Entry\]/a TryExec=$path" \
+            "$APPDIR/usr/share/applications/$app_id.desktop" >"$desktop"
+        echo "Wrote $desktop"
+        for dir in "$APPDIR"/usr/share/icons/hicolor/*/apps; do
+            size="$(basename "$(dirname "$dir")")"
+            for file in "$dir"/$app_id.*; do
+                mkdir -p "$icons/$size/apps"
+                cp -f "$file" "$icons/$size/apps/"
+                echo "Wrote $icons/$size/apps/$(basename "$file")"
+            done
+        done
+        cp -f "$APPDIR/usr/share/mime/packages/$app_id.xml" "$mime/packages/$app_id.xml"
+        echo "Wrote $mime/packages/$app_id.xml"
+    else
+        for file in "$desktop" "$mime/packages/$app_id.xml" "$icons"/*/apps/$app_id.png "$icons"/*/apps/$app_id.svg; do
+            if [ -e "$file" ]; then
+                rm -f "$file"
+                echo "Removed $file"
+            fi
+        done
+    fi
+
+    # Let the menu, the icon theme and the file-type list notice.
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database "$apps" >/dev/null 2>&1 || true
+    fi
+    if command -v gtk-update-icon-cache >/dev/null 2>&1 && [ -d "$icons" ]; then
+        gtk-update-icon-cache -f -t "$icons" >/dev/null 2>&1 || true
+    fi
+    if command -v update-mime-database >/dev/null 2>&1 && [ -d "$mime/packages" ]; then
+        update-mime-database "$mime" >/dev/null 2>&1 || true
+    fi
+    if [ "$action" = --install-desktop-entry ]; then
+        echo "Jubako is in your app menu. If you move or rename the AppImage, run this again."
+    else
+        echo "Jubako's menu entry is gone. The AppImage itself is untouched."
+    fi
+}
+
+module=jubako_app
+case "${1:-}" in
+    --install-desktop-entry|--remove-desktop-entry) desktop_entry "$1"; exit 0 ;;
+    app) shift ;;
+    cli) module=jubako; shift ;;
+    mcp) module=jubako_mcp; shift ;;
+    *)
+        case "$(basename "${ARGV0:-$0}")" in
+            jubako-cli) module=jubako ;;
+            jubako-mcp) module=jubako_mcp ;;
+        esac
+        ;;
+esac
+
+exec "$python" -I -m "$module" "$@"

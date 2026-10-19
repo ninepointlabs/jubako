@@ -135,6 +135,48 @@ the right package for your distro and keep it up to date:
 autonomix-cli add https://github.com/ninepointlabs/jubako
 ```
 
+### Other Linux distros (AppImage)
+
+Each release also has an AppImage, `jubako-<version>-x86_64.AppImage`, with its
+own Python and Qt inside, so nothing else needs installing. It runs on any
+x86_64 Linux from about 2021 on (glibc 2.34+: Ubuntu 22.04, Debian 12,
+Fedora 39, openSUSE Leap 15.6, RHEL 9 and newer). Excel import and export,
+PDF reports, printing and the PostgreSQL / MySQL backends all work from it.
+
+```sh
+chmod +x jubako-0.4.6-x86_64.AppImage
+./jubako-0.4.6-x86_64.AppImage                  # the window
+./jubako-0.4.6-x86_64.AppImage pets.jubadb      # open a database straight away
+./jubako-0.4.6-x86_64.AppImage cli tables pets.jubadb   # the command line
+./jubako-0.4.6-x86_64.AppImage mcp              # the MCP server, for agents
+```
+
+To get it in your app menu and dock, let [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever)
+or [AppImageLauncher](https://github.com/TheAssassin/AppImageLauncher) take
+it in: they use the menu entry and icons inside, and can update it in place
+when a new release comes out. Without one of those, the AppImage can do it
+itself:
+
+```sh
+./jubako-0.4.6-x86_64.AppImage --install-desktop-entry   # menu entry, icons, .jubadb file type
+./jubako-0.4.6-x86_64.AppImage --remove-desktop-entry    # undo it
+```
+
+That writes to `~/.local/share` (or `$XDG_DATA_HOME`) and nothing else, and
+the entry points at wherever the AppImage is now, so run it again if you move
+the file. On Omarchy the window follows your theme just as the package does;
+elsewhere it is light or dark to match your desktop.
+
+The AppImage mounts itself with FUSE. Its runtime carries its own FUSE
+library, so the old advice to install `libfuse2` does not apply; it only needs
+the `fusermount3` (or `fusermount`) helper that desktops ship. If it will not
+start with a message about FUSE, install `fuse3` (Ubuntu, Debian, Fedora,
+openSUSE), or run it without FUSE:
+
+```sh
+./jubako-0.4.6-x86_64.AppImage --appimage-extract-and-run
+```
+
 ### From source
 
 Jubako needs Python 3.11 or newer. The window (and PDF reports) need Qt 6
@@ -213,6 +255,17 @@ Add this to your MCP client. For Claude Code:
 
 ```sh
 claude mcp add jubako -- /home/you/Projects/jubako/.venv/bin/jubako-mcp
+```
+
+With the AppImage, point the client at the AppImage file with `mcp` as its
+argument (or at a symlink to it named `jubako-mcp`):
+
+```sh
+claude mcp add jubako -- ~/Applications/jubako-0.4.6-x86_64.AppImage mcp
+```
+
+```json
+{ "mcpServers": { "jubako": { "command": "/home/you/Applications/jubako-0.4.6-x86_64.AppImage", "args": ["mcp"] } } }
 ```
 
 Then ask it to do the work:
@@ -301,6 +354,19 @@ tag), then installs each package in a fresh Debian, Ubuntu, Fedora and Arch
 container and checks the command line, the MCP server and the window. When
 `pkgver` changes, release the tag, then set `sha256sums` in
 `packaging/arch/PKGBUILD` to the tag tarball's checksum.
+
+```sh
+scripts/build-appimage.sh --test    # the AppImage into dist/, then packaging/appimage/smoke.sh on it
+```
+
+The AppImage is built on Ubuntu 22.04 (in Docker here, on GitHub Actions for
+a release) from pinned, checksummed downloads: python-appimage's Python 3.12,
+the PySide6 wheels and the rest of `packaging/appimage/requirements.txt`, and
+appimagetool. Publishing a release runs `.github/workflows/appimage.yml`,
+which builds it, checks it, and attaches the AppImage, its `.zsync` and
+`.sha256` to the release and adds it to `SHA256SUMS`. It only ever adds
+files. For a release that already exists, run the workflow by hand with its
+tag.
 
 ### Layout
 

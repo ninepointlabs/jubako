@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.ninepointlabs.jubako</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Jubako</name>
+  <summary>A simple desktop database, in the spirit of Microsoft Access</summary>
+  <developer_name>Nine Point Labs</developer_name>
+  <description>
+    <p>
+      Make a database, put a spreadsheet in it, look at your rows, print a tidy
+      list. No SQL to learn, no server to set up, no account to make.
+    </p>
+    <ul>
+      <li>Import CSV and Excel files; Jubako works out the column types</li>
+      <li>Browse and edit rows in a grid, or one at a time in a form</li>
+      <li>Saved views, lookups between tables, and reports that fit the page</li>
+      <li>Export to CSV, Excel or PDF, or print</li>
+      <li>One SQLite file per database, or keep it on PostgreSQL or MySQL</li>
+      <li>A command line and an MCP server, so agents can do the same jobs</li>
+    </ul>
+    <p>
+      Made for Omarchy, where it follows the desktop theme, and at home on any
+      Linux desktop.
+    </p>
+  </description>
+  <launchable type="desktop-id">jubako.desktop</launchable>
+  <provides>
+    <binary>jubako-app</binary>
+    <binary>jubako</binary>
+    <binary>jubako-mcp</binary>
+    <mediatype>application/x-jubako</mediatype>
+  </provides>
+  <url type="homepage">https://github.com/ninepointlabs/jubako</url>
+  <url type="bugtracker">https://github.com/ninepointlabs/jubako/issues</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>The orders table of a demo bike-shop database in the grid</caption>
+      <image>https://raw.githubusercontent.com/ninepointlabs/jubako/main/docs/screenshots/grid.webp</image>
+    </screenshot>
+    <screenshot>
+      <caption>One order in an arranged form</caption>
+      <image>https://raw.githubusercontent.com/ninepointlabs/jubako/main/docs/screenshots/form.webp</image>
+    </screenshot>
+    <screenshot>
+      <caption>The report designer, with bike sales grouped by rep</caption>
+      <image>https://raw.githubusercontent.com/ninepointlabs/jubako/main/docs/screenshots/report.webp</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.4.6" date="2026-10-17"/>
+  </releases>
+</component>

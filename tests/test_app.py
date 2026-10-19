@@ -213,6 +213,46 @@ def test_theme_reads_omarchy_colors_and_falls_back(tmp_path):
     assert palette.color(QPalette.ColorRole.Base).name() == "#ffffff"
 
 
+def test_without_omarchy_the_fallback_follows_the_desktops_light_or_dark():
+    from PySide6.QtCore import Qt
+
+    from jubako_app.theme import FALLBACK, LIGHT_FALLBACK, system_fallback
+
+    class Hints:
+        def __init__(self, scheme):
+            self.scheme = scheme
+
+        def colorScheme(self):  # noqa: N802 - Qt's name
+            return self.scheme
+
+    class App:
+        def __init__(self, scheme):
+            self.hints = Hints(scheme)
+
+        def styleHints(self):  # noqa: N802 - Qt's name
+            return self.hints
+
+    assert system_fallback(App(Qt.ColorScheme.Light)) is LIGHT_FALLBACK
+    assert system_fallback(App(Qt.ColorScheme.Dark)) is FALLBACK
+    assert system_fallback(App(Qt.ColorScheme.Unknown)) is FALLBACK
+    assert system_fallback(None) is FALLBACK
+    assert set(LIGHT_FALLBACK) == set(FALLBACK)
+
+
+def test_theme_uses_the_old_config_path_only_when_the_state_one_is_absent(tmp_path, monkeypatch):
+    from jubako_app.theme import current_dir
+
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    state = tmp_path / "state" / "omarchy" / "current"
+    legacy = tmp_path / "config" / "omarchy" / "current"
+    assert current_dir() == state  # neither exists: nothing to watch, plain fallback
+    (legacy / "theme").mkdir(parents=True)
+    assert current_dir() == legacy
+    state.mkdir(parents=True)
+    assert current_dir() == state
+
+
 # -- the window ----------------------------------------------------------------
 
 def test_the_window_loads_and_shows_an_imported_table(app, bridge, sandbox, pets_csv):
