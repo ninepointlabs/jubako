@@ -120,9 +120,9 @@ for Arch (and Omarchy), Debian / Ubuntu, and Fedora. They pull in Python and
 Qt from your distro and put Jubako in your app launcher.
 
 ```sh
-sudo pacman -U jubako-0.4.6-1-any.pkg.tar.zst      # Arch, Omarchy
-sudo apt install ./jubako_0.4.6-1_all.deb          # Debian 13+, Ubuntu 26.04+
-sudo dnf install ./jubako-0.4.6-1.noarch.rpm       # Fedora 44+
+sudo pacman -U jubako-0.4.7-1-any.pkg.tar.zst      # Arch, Omarchy
+sudo apt install ./jubako_0.4.7-1_all.deb          # Debian 13+, Ubuntu 26.04+
+sudo dnf install ./jubako-0.4.7-1.noarch.rpm       # Fedora 44+
 ```
 
 Excel files need `openpyxl`: apt and dnf install it along with Jubako, and on
@@ -144,11 +144,11 @@ Fedora 39, openSUSE Leap 15.6, RHEL 9 and newer). Excel import and export,
 PDF reports, printing and the PostgreSQL / MySQL backends all work from it.
 
 ```sh
-chmod +x jubako-0.4.6-x86_64.AppImage
-./jubako-0.4.6-x86_64.AppImage                  # the window
-./jubako-0.4.6-x86_64.AppImage pets.jubadb      # open a database straight away
-./jubako-0.4.6-x86_64.AppImage cli tables pets.jubadb   # the command line
-./jubako-0.4.6-x86_64.AppImage mcp              # the MCP server, for agents
+chmod +x jubako-0.4.7-x86_64.AppImage
+./jubako-0.4.7-x86_64.AppImage                  # the window
+./jubako-0.4.7-x86_64.AppImage pets.jubadb      # open a database straight away
+./jubako-0.4.7-x86_64.AppImage cli tables pets.jubadb   # the command line
+./jubako-0.4.7-x86_64.AppImage mcp              # the MCP server, for agents
 ```
 
 To get it in your app menu and dock, let [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever)
@@ -158,8 +158,8 @@ when a new release comes out. Without one of those, the AppImage can do it
 itself:
 
 ```sh
-./jubako-0.4.6-x86_64.AppImage --install-desktop-entry   # menu entry, icons, .jubadb file type
-./jubako-0.4.6-x86_64.AppImage --remove-desktop-entry    # undo it
+./jubako-0.4.7-x86_64.AppImage --install-desktop-entry   # menu entry, icons, .jubadb file type
+./jubako-0.4.7-x86_64.AppImage --remove-desktop-entry    # undo it
 ```
 
 That writes to `~/.local/share` (or `$XDG_DATA_HOME`) and nothing else, and
@@ -174,7 +174,7 @@ start with a message about FUSE, install `fuse3` (Ubuntu, Debian, Fedora,
 openSUSE), or run it without FUSE:
 
 ```sh
-./jubako-0.4.6-x86_64.AppImage --appimage-extract-and-run
+./jubako-0.4.7-x86_64.AppImage --appimage-extract-and-run
 ```
 
 ### From source
@@ -261,11 +261,11 @@ With the AppImage, point the client at the AppImage file with `mcp` as its
 argument (or at a symlink to it named `jubako-mcp`):
 
 ```sh
-claude mcp add jubako -- ~/Applications/jubako-0.4.6-x86_64.AppImage mcp
+claude mcp add jubako -- ~/Applications/jubako-0.4.7-x86_64.AppImage mcp
 ```
 
 ```json
-{ "mcpServers": { "jubako": { "command": "/home/you/Applications/jubako-0.4.6-x86_64.AppImage", "args": ["mcp"] } } }
+{ "mcpServers": { "jubako": { "command": "/home/you/Applications/jubako-0.4.7-x86_64.AppImage", "args": ["mcp"] } } }
 ```
 
 Then ask it to do the work:
@@ -349,7 +349,7 @@ JUBAKO_PASSWORD=secret .venv/bin/python scripts/smoke_remote.py postgres \
 scripts/build-packages.sh --test    # Arch, .deb and .rpm into dist/, then install-test each
 ```
 
-It builds in Docker containers from the committed tree (`--ref v0.4.6` for a
+It builds in Docker containers from the committed tree (`--ref v0.4.7` for a
 tag), then installs each package in a fresh Debian, Ubuntu, Fedora and Arch
 container and checks the command line, the MCP server and the window. When
 `pkgver` changes, release the tag, then set `sha256sums` in

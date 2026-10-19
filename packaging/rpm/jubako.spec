@@ -1,5 +1,5 @@
 Name:           jubako
-Version:        0.4.6
+Version:        0.4.7
 Release:        1%{?dist}
 Summary:        A simple desktop database, in the spirit of Microsoft Access
 License:        MIT
@@ -40,6 +40,8 @@ rm -rf %{buildroot}%{_docdir}/%{name} %{buildroot}%{_datadir}/licenses/%{name}
 %{_datadir}/icons/hicolor/scalable/apps/jubako.svg
 
 %changelog
+* Mon Oct 19 2026 Nine Point Labs <179739321+ninepointlabs@users.noreply.github.com> - 0.4.7-1
+- An AppImage for other Linux distributions, attached to each release.
 * Sat Oct 17 2026 Nine Point Labs <179739321+ninepointlabs@users.noreply.github.com> - 0.4.6-1
 - An About screen, from the home screen and the Database... menu.
 * Sun Oct 11 2026 Nine Point Labs <179739321+ninepointlabs@users.noreply.github.com> - 0.4.5-1
