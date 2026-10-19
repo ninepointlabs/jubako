@@ -158,6 +158,10 @@ footer { text-align: center; padding: 70px 24px 56px; border-top: 1px solid rgba
 .pills span { padding: 9px 20px; border-radius: 40px; font-size: 15px; font-weight: 700; background: var(--panel);
   box-shadow: 0 0 0 1px rgba(226,182,94,.45); }
 .small { margin-top: 28px; font-size: 14px; color: #8a7a6a; }
+footer .social { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; margin: 12px 0; }
+footer .social a { display: inline-flex; color: var(--dim); }
+footer .social a:hover, footer .social a:focus-visible { color: var(--gold); }
+footer .social svg { width: 18px; height: 18px; fill: currentColor; }
 
 @media (max-width: 900px) {
   .hero { grid-template-columns: 1fr; justify-items: center; text-align: center; }
