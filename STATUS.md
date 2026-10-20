@@ -2,6 +2,17 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-19.**
 
+## 2026-10-20 — The .rpm installs on openSUSE Tumbleweed
+
+The .rpm asked for `qt6-qtdeclarative`, Fedora's name for the Qt Quick
+modules, so zypper refused it. It now asks for that or openSUSE's
+`qt6-declarative-imports` (and `python3-psycopg3` or `python3-psycopg`), so
+the one .rpm installs on both. On openSUSE the README was left over in
+`/usr/share/doc/jubako`, which stopped the build; that is fixed too. The
+.rpm now brings the `.jubadb` file type and the software-centre listing, as
+the AppImage does. `scripts/build-packages.sh --test` installs the Fedora-built
+.rpm on `opensuse/tumbleweed` as well.
+
 ## Release 0.4.7 — 2026-10-19
 
 An AppImage for other Linux distributions, next to the Arch, .deb and .rpm packages.

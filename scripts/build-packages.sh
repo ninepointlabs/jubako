@@ -46,7 +46,7 @@ debian_depends=(
 depends_line="$(IFS=,; echo "${debian_depends[*]}" | sed 's/,/, /g')"
 
 echo "== .deb (Debian 13)"
-docker run --rm -v "$out:/out" -e V="$version" -e DEPENDS="$depends_line" -e OWNER="$owner" debian:13 bash -euc '
+docker run --rm -v "$out:/out:z" -e V="$version" -e DEPENDS="$depends_line" -e OWNER="$owner" debian:13 bash -euc '
   cd /tmp && tar xzf "/out/jubako-$V.tar.gz" && cd "jubako-$V"
   root=/tmp/root
   packaging/stage.sh "$root"
@@ -75,7 +75,7 @@ EOF
 '
 
 echo "== .rpm (Fedora 44)"
-docker run --rm -v "$out:/out" -e V="$version" -e OWNER="$owner" fedora:44 bash -euc '
+docker run --rm -v "$out:/out:z" -e V="$version" -e OWNER="$owner" fedora:44 bash -euc '
   dnf -q -y install rpm-build >/dev/null
   mkdir -p ~/rpmbuild/SOURCES
   cp "/out/jubako-$V.tar.gz" ~/rpmbuild/SOURCES/
@@ -86,7 +86,7 @@ docker run --rm -v "$out:/out" -e V="$version" -e OWNER="$owner" fedora:44 bash 
 '
 
 echo "== Arch"
-docker run --rm -v "$out:/out" -e V="$version" -e OWNER="$owner" -e FROM_GITHUB="$from_github" archlinux:latest bash -euc '
+docker run --rm -v "$out:/out:z" -e V="$version" -e OWNER="$owner" -e FROM_GITHUB="$from_github" archlinux:latest bash -euc '
   pacman -Syu --noconfirm --needed base-devel python-build python-installer python-hatchling pyside6 qt6-declarative >/dev/null
   useradd -m builder
   build=/home/builder/build
@@ -126,19 +126,25 @@ smoke='
   fi
   echo "ok: cli, mcp, window"
 '
-pets="$here/data/examples/pets.csv:/root/pets.csv:ro"
+pets="$here/data/examples/pets.csv:/root/pets.csv:ro,z"
 
 for image in debian:13 ubuntu:26.04; do
   echo "== test .deb on $image"
-  docker run --rm -v "$out:/out:ro" -v "$pets" "$image" bash -c "
+  docker run --rm -v "$out:/out:ro,z" -v "$pets" "$image" bash -c "
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq >/dev/null && apt-get install -y -qq /out/jubako_${version}-1_all.deb >/dev/null && $smoke"
 done
 
 echo "== test .rpm on fedora:44"
-docker run --rm -v "$out:/out:ro" -v "$pets" fedora:44 bash -c "
+docker run --rm -v "$out:/out:ro,z" -v "$pets" fedora:44 bash -c "
   dnf -q -y install /out/jubako-${version}-1.noarch.rpm >/dev/null && $smoke"
 
+# The same .rpm, as built on Fedora, on openSUSE. It is unsigned, as it is for anyone
+# who downloads it from a release.
+echo "== test .rpm on opensuse/tumbleweed"
+docker run --rm -v "$out:/out:ro,z" -v "$pets" opensuse/tumbleweed bash -c "
+  zypper -q -n in --allow-unsigned-rpm /out/jubako-${version}-1.noarch.rpm >/dev/null && $smoke"
+
 echo "== test Arch package on archlinux:latest"
-docker run --rm -v "$out:/out:ro" -v "$pets" archlinux:latest bash -c "
+docker run --rm -v "$out:/out:ro,z" -v "$pets" archlinux:latest bash -c "
   pacman -Syu --noconfirm >/dev/null && pacman -U --noconfirm /out/jubako-${version}-1-any.pkg.tar.zst >/dev/null && $smoke"

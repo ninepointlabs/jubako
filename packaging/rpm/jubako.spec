@@ -9,9 +9,10 @@ BuildArch:      noarch
 
 Requires:       python3 >= 3.11
 Requires:       python3-pyside6 >= 6.6
-Requires:       qt6-qtdeclarative
+# Fedora and openSUSE name the Qt Quick modules and psycopg differently.
+Requires:       (qt6-qtdeclarative or qt6-declarative-imports)
 Recommends:     python3-openpyxl
-Suggests:       python3-psycopg3
+Suggests:       (python3-psycopg3 or python3-psycopg)
 Suggests:       python3-PyMySQL
 
 %description
@@ -26,8 +27,11 @@ line and an MCP server for agents, over one SQLite file per database.
 
 %install
 packaging/stage.sh %{buildroot}
-# rpm keeps docs and licences through %%doc and %%license below.
-rm -rf %{buildroot}%{_docdir}/%{name} %{buildroot}%{_datadir}/licenses/%{name}
+# rpm keeps docs and licences through %%doc and %%license below. stage.sh
+# writes them to /usr/share/doc/jubako, which is not %%{_docdir} on openSUSE.
+rm -rf %{buildroot}%{_datadir}/doc/%{name} %{buildroot}%{_datadir}/licenses/%{name}
+install -Dm644 packaging/jubako-mime.xml %{buildroot}%{_datadir}/mime/packages/jubako.xml
+install -Dm644 packaging/jubako.appdata.xml %{buildroot}%{_datadir}/metainfo/jubako.appdata.xml
 
 %files
 %license LICENSE
@@ -38,6 +42,8 @@ rm -rf %{buildroot}%{_docdir}/%{name} %{buildroot}%{_datadir}/licenses/%{name}
 %{_prefix}/lib/jubako/
 %{_datadir}/applications/jubako.desktop
 %{_datadir}/icons/hicolor/scalable/apps/jubako.svg
+%{_datadir}/mime/packages/jubako.xml
+%{_datadir}/metainfo/jubako.appdata.xml
 
 %changelog
 * Mon Oct 19 2026 Nine Point Labs <179739321+ninepointlabs@users.noreply.github.com> - 0.4.7-1
