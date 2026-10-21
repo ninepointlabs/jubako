@@ -176,3 +176,74 @@ def test_rename_database_and_save_a_copy(database, sandbox):
     assert schema.save_copy(database, copy["file"], overwrite=True)["replaced_existing_file"] is True
     with pytest.raises(JubakoError, match="the database itself"):
         schema.save_copy(database, database.location(), overwrite=True)
+
+
+def test_create_table_makes_an_empty_table_from_labels(database):
+    result = schema.create_table(database, "Vet visits", [
+        {"label": "Pet"},
+        {"label": "Visited on", "type": "date"},
+        {"label": "Paid", "type": "boolean"},
+        {"label": "Invoice no", "unique": True},
+        {"label": "  "},   # a blank line in the window is skipped
+    ])
+    assert result["table"] == "vet_visits"
+    assert result["fields"] == [
+        {"name": "pet", "type": "text", "label": "Pet"},
+        {"name": "visited_on", "type": "date", "label": "Visited on"},
+        {"name": "paid", "type": "boolean", "label": "Paid"},
+        {"name": "invoice_no", "type": "text", "label": "Invoice no", "unique": True},
+    ]
+    assert database.list_tables() == ["vet_visits"]
+    assert database.describe_table("vet_visits").row_count == 0
+    database.add_row("vet_visits", {"pet": "Rex", "visited_on": "2026-10-01", "paid": "yes", "invoice_no": "A1"})
+    page = database.list_rows("vet_visits")
+    assert page["rows"][0][1:] == ["Rex", "2026-10-01", True, "A1"]
+    with pytest.raises(JubakoError, match="already"):
+        database.add_row("vet_visits", {"pet": "Milo", "invoice_no": "A1"})
+
+
+def test_create_table_refuses_in_words(database):
+    with pytest.raises(JubakoError, match="Give the new table a name"):
+        schema.create_table(database, "  ", [{"label": "Name"}])
+    with pytest.raises(JubakoError, match="at least one field"):
+        schema.create_table(database, "Pets", [{"label": ""}])
+    with pytest.raises(JubakoError, match="both be called 'name'"):
+        schema.create_table(database, "Pets", [{"label": "Name"}, {"label": "name"}])
+    with pytest.raises(JubakoError, match="Unknown field type 'colour'"):
+        schema.create_table(database, "Pets", [{"label": "Name", "type": "colour"}])
+    with pytest.raises(BadName):
+        schema.create_table(database, "Pets", [{"label": "Id"}])
+    with pytest.raises(BadName):
+        schema.create_table(database, "Jubako tables", [{"label": "Name"}])
+    schema.create_table(database, "Pets", [{"label": "Name"}])
+    with pytest.raises(BadName, match="already a table called 'pets'"):
+        schema.create_table(database, "pets", [{"label": "Name"}])
+    assert database.list_tables() == ["pets"]
+
+
+def test_create_table_with_a_lookup(database):
+    schema.create_table(database, "Owners", [{"label": "Name"}])
+    result = schema.create_table(database, "Pets", [
+        {"label": "Name"}, {"label": "Owner", "type": "lookup", "target": "owners", "show": "name"},
+    ])
+    assert result["fields"][1] == {"name": "owner", "type": "lookup", "label": "Owner",
+                                   "target": "owners", "show": "name"}
+
+
+def test_new_table_on_the_command_line(sandbox, capsys):
+    from jubako.cli import main as cli
+
+    db = str(sandbox / "cli.jubadb")
+    assert cli(["new", "Vets", db]) == 0
+    assert cli(["new-table", db, "Vets", "Name", "Phone", "Last visit:date", "Insured:Boolean",
+                "--unique", "Phone"]) == 0
+    out = capsys.readouterr().out
+    assert "Made the table 'vets'" in out and "phone  (text, no repeats)" in out
+    with open_database(backend="sqlite", path=db) as storage:
+        fields = storage.describe_table("vets").fields
+    assert [(f.name, f.type, f.unique) for f in fields] == [
+        ("name", "text", False), ("phone", "text", True), ("last_visit", "date", False),
+        ("insured", "boolean", False),
+    ]
+    assert cli(["new-table", db, "Other", "Born:birthday"]) == 2
+    assert "Unknown field type 'birthday'" in capsys.readouterr().err

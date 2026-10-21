@@ -1,5 +1,5 @@
-"""Changing the shape of things: rename or delete a field, delete a table or a
-whole database file. Each one also keeps the forms and reports remembered in
+"""Changing the shape of things: make a table, add, rename or delete a field,
+delete a table or a whole database file. Each one also keeps the forms and reports remembered in
 the database in step, so nothing points at a field that is gone.
 """
 
@@ -27,21 +27,37 @@ def add_field(
 
     A lookup (`field_type="lookup"`) points at rows of `target` and shows their `show` field.
     """
-    label = (label or "").strip()
-    name = (name or "").strip()
-    if not label and not name:
-        raise JubakoError("Give the new field a label.")
-    name = name or slugify_name(label, fallback="field")
-    if field_type not in ALL_FIELD_TYPES:
-        raise JubakoError(f"Unknown field type {field_type!r}. Use: {', '.join(ALL_FIELD_TYPES)}.")
-    if field_type == LOOKUP:
-        if not (target or "").strip() or not (show or "").strip():
-            raise JubakoError("Say which table the lookup points at, and which of its fields it shows.")
-        field = Field(name=name, type=LOOKUP, label=label or None, target=target.strip(), show=show.strip())
-    else:
-        field = Field(name=name, type=field_type, label=label or None, unique=bool(unique))
+    field = _new_field(label=label, name=name, field_type=field_type, unique=unique, target=target, show=show)
     info = storage.add_field(table, field)
     return _field_result(info, table)
+
+
+def create_table(storage: Storage, table: str, fields: list[dict[str, Any]]) -> dict[str, Any]:
+    """Make a new, empty table. Its name inside comes from `table` ("Vet visits" -> "vet_visits").
+
+    Each field is {label, name, type, unique, target, show}, as for `add_field`; a field with
+    neither a label nor a name is skipped, so a blank line in the window does no harm.
+    """
+    if not (table or "").strip():
+        raise JubakoError("Give the new table a name.")
+    name = slugify_name(table, fallback="table")
+    made = [
+        _new_field(
+            label=item.get("label", ""), name=item.get("name", ""), field_type=item.get("type") or "text",
+            unique=bool(item.get("unique", False)), target=item.get("target", ""), show=item.get("show", ""),
+        )
+        for item in fields
+        if (item.get("label") or "").strip() or (item.get("name") or "").strip()
+    ]
+    if not made:
+        raise JubakoError("Give the new table at least one field.")
+    seen: set[str] = set()
+    for field in made:
+        if field.name in seen:
+            raise JubakoError(f"Two fields would both be called {field.name!r}. Give one another label.")
+        seen.add(field.name)
+    info = storage.create_table(name, made)
+    return _field_result(info, name)
 
 
 def make_lookup(
@@ -179,6 +195,24 @@ def save_copy(storage: Storage, path: str, *, overwrite: bool = False) -> dict[s
 
 
 # -- inside -------------------------------------------------------------
+
+def _new_field(
+    *, label: str, name: str, field_type: str, unique: bool, target: str, show: str,
+) -> Field:
+    """A field from what someone typed: the name inside comes from the label when not given."""
+    label = (label or "").strip()
+    name = (name or "").strip()
+    if not label and not name:
+        raise JubakoError("Give the new field a label.")
+    name = name or slugify_name(label, fallback="field")
+    if field_type not in ALL_FIELD_TYPES:
+        raise JubakoError(f"Unknown field type {field_type!r}. Use: {', '.join(ALL_FIELD_TYPES)}.")
+    if field_type == LOOKUP:
+        if not (target or "").strip() or not (show or "").strip():
+            raise JubakoError("Say which table the lookup points at, and which of its fields it shows.")
+        return Field(name=name, type=LOOKUP, label=label or None, target=target.strip(), show=show.strip())
+    return Field(name=name, type=field_type, label=label or None, unique=bool(unique))
+
 
 def _field_result(info: TableInfo, table: str) -> dict[str, Any]:
     return {

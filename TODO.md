@@ -10,6 +10,8 @@ and the window, with tests. Work order: 7a → 6 → 4 → 2 → 3 → 5 → 7b.
 ## 1. Tables — done
 
 - [x] Make, import, browse, edit; add, rename and delete fields.
+- [x] Make an empty table by naming it and listing its fields, not only by
+      importing a spreadsheet or starting from a template.
 
 ## 2. Primary keys
 

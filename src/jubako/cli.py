@@ -1,6 +1,7 @@
 """`jubako` on the command line — the same jobs the app does.
 
     jubako new "My Pets" ~/Documents/pets.jubadb
+    jubako new-table ~/Documents/pets.jubadb Vets Name Phone "Last visit:date"
     jubako import ~/Documents/pets.jubadb data/examples/pets.csv
     jubako tables ~/Documents/pets.jubadb
     jubako rows ~/Documents/pets.jubadb pets
@@ -18,6 +19,7 @@ from typing import Any
 from . import catalog
 from .errors import JubakoError
 from .exporter import export_table
+from .fields import slugify_name
 from .importer import import_spreadsheet, import_workbook, plan_import
 from .reports import export_report
 from . import schema
@@ -58,6 +60,25 @@ def cmd_new(args: argparse.Namespace) -> int:
             print(f"From the {made['title']} template: tables {', '.join(made['tables'])}; "
                   f"{made['rows_added']} example rows; views {', '.join(made['views'])}; "
                   f"reports {', '.join(made['reports'])}.")
+    return 0
+
+
+def cmd_new_table(args: argparse.Namespace) -> int:
+    """Make an empty table: each field is "Label" (words) or "Label:type", like "Born:date"."""
+    fields = []
+    for spec in args.fields:
+        label, colon, field_type = spec.rpartition(":")
+        if not colon:
+            label, field_type = spec, "text"
+        fields.append({"label": label, "type": field_type.strip().lower() or "text"})
+    unique = {slugify_name(u) for u in args.unique or []}
+    for field in fields:
+        field["unique"] = slugify_name(field["label"]) in unique
+    with open_database(backend="sqlite", path=args.path) as storage:
+        result = schema.create_table(storage, args.table, fields)
+    print(f"Made the table {result['table']!r}:")
+    for field in result["fields"]:
+        print(f"  {field['name']}  ({field['type']}{', no repeats' if field.get('unique') else ''})")
     return 0
 
 
@@ -364,6 +385,14 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_argument("path")
     sub.add_argument("title")
     sub.set_defaults(func=cmd_rename)
+
+    sub = subs.add_parser("new-table", help="Make an empty table with the fields you list")
+    sub.add_argument("path")
+    sub.add_argument("table", help="What it holds, like Pets; the name inside is made from it")
+    sub.add_argument("fields", nargs="+", metavar="LABEL[:TYPE]",
+                     help="One per field, like Name or Born:date. Types: text, integer, real, date, boolean")
+    sub.add_argument("--unique", action="append", metavar="LABEL", help="No repeats in this field, once per field")
+    sub.set_defaults(func=cmd_new_table)
 
     sub = subs.add_parser("unique", help="Make a field no-repeats (like an email or a code)")
     sub.add_argument("path")

@@ -8,7 +8,9 @@ Item {
     property string title: ""
     property string text: ""
     property string buttonText: ""
+    property string secondButtonText: ""   // a second way, beside the first
     signal clicked()
+    signal secondClicked()
 
     ColumnLayout {
         anchors.centerIn: parent
@@ -31,14 +33,23 @@ Item {
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap
         }
-        BigButton {
+        RowLayout {
             Layout.alignment: Qt.AlignHCenter
             Layout.topMargin: 12
-            visible: root.buttonText !== ""
-            text: root.buttonText
-            primary: true
-            implicitHeight: 64
-            onClicked: root.clicked()
+            spacing: 12
+            BigButton {
+                visible: root.buttonText !== ""
+                text: root.buttonText
+                primary: true
+                implicitHeight: 64
+                onClicked: root.clicked()
+            }
+            BigButton {
+                visible: root.secondButtonText !== ""
+                text: root.secondButtonText
+                implicitHeight: 64
+                onClicked: root.secondClicked()
+            }
         }
     }
 }

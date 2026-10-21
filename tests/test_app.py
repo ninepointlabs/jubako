@@ -1313,3 +1313,75 @@ def test_about_opens_from_home_and_from_the_database_menu(app, bridge, sandbox, 
     finally:
         engine.deleteLater()
         app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+def test_new_table_from_the_bridge(bridge, sandbox):
+    assert bridge.newTable("Pets", [{"label": "Name"}])["error"] == "Open a database first."
+    assert bridge.newDatabase("sqlite", str(sandbox / "blank.jubadb"), "Blank", {})["ok"] is True
+    assert bridge.tableName("Vet visits") == "vet_visits" and bridge.tableName("  ") == ""
+    made = bridge.newTable("Vet visits", [{"label": "Pet", "type": "text", "unique": False},
+                                          {"label": "Visited on", "type": "date", "unique": False}])
+    assert made["ok"] is True and made["table"] == "vet_visits"
+    assert [t["name"] for t in bridge.tables] == ["vet_visits"]
+    assert bridge.currentTable == "vet_visits" and bridge.totalRows == 0
+    assert [(f["name"], f["type"]) for f in bridge.fields] == [("pet", "text"), ("visited_on", "date")]
+    again = bridge.newTable("vet visits", [{"label": "Pet"}])
+    assert again["ok"] is False and "already a table" in again["error"]
+
+
+def _find_in(item, name):
+    """An item by objectName under `item`, walking the visual tree (a Repeater's rows are not QObject children)."""
+    stack = [item]
+    while stack:
+        item = stack.pop()
+        if item.objectName() == name:
+            return item
+        stack.extend(item.childItems())
+    return None
+
+
+def test_make_a_table_through_the_window_and_add_its_first_row(app, bridge, sandbox):
+    """New table… on an empty database, two fields, Make the table; the empty table still has its toolbar."""
+    from PySide6.QtCore import Q_ARG, QEvent, QMetaObject
+
+    engine, window, _ = _load_window(app, bridge)
+    assert bridge.newDatabase("sqlite", str(sandbox / "blank.jubadb"), "Blank", {})["ok"] is True
+    try:
+        app.processEvents()
+        QMetaObject.invokeMethod(_find_item(window, "newTableButton"), "clicked")
+        app.processEvents()
+        dialog = window.findChild(QObject, "newTableDialog")
+        assert dialog.property("visible") is True
+        dialog.findChild(QObject, "newTableName").setProperty("text", "Vet visits")
+        content = dialog.property("contentItem")
+
+        first = _find_in(content, "newTableFieldLabel0")
+        first.setProperty("text", "Pet")
+        QMetaObject.invokeMethod(first, "textEdited")       # what typing does
+        QMetaObject.invokeMethod(dialog.findChild(QObject, "newTableAddLine"), "clicked")
+        app.processEvents()
+        second = _find_in(content, "newTableFieldLabel1")
+        second.setProperty("text", "Visited on")
+        QMetaObject.invokeMethod(second, "textEdited")
+        kind = _find_in(content, "newTableFieldType1")
+        date = [t["key"] for t in bridge.fieldTypes()].index("date")
+        kind.setProperty("currentIndex", date)
+        QMetaObject.invokeMethod(kind, "activated", Q_ARG(int, date))
+        QMetaObject.invokeMethod(dialog.findChild(QObject, "newTableGo"), "clicked")
+        app.processEvents()
+
+        assert dialog.property("visible") is False
+        assert bridge.currentTable == "vet_visits"
+        assert [(f["name"], f["type"]) for f in bridge.fields] == [("pet", "text"), ("visited_on", "date")]
+
+        # No rows yet: the toolbar (Add row, More…) stays, and the empty space offers Add row too.
+        assert _find_item(window, "moreButton").property("visible") is True
+        empty = _find_item(window, "noRowsState")
+        assert empty.property("visible") is True
+        QMetaObject.invokeMethod(empty, "clicked")
+        app.processEvents()
+        assert window.findChild(QObject, "formView").property("visible") is True
+        assert empty.property("visible") is False
+    finally:
+        engine.deleteLater()
+        app.sendPostedEvents(None, QEvent.Type.DeferredDelete)

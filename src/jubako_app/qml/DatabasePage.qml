@@ -9,6 +9,9 @@ Page {
     objectName: "databasePage"
     property string mode: "grid"       // "grid" or "form"
     property int selectedRow: grid.currentRow
+    // An empty table in the grid: the toolbar stays, and the space for rows says what to do.
+    readonly property bool noRows: Bridge.currentTable !== "" && Bridge.totalRows === 0
+                                   && Bridge.filterWords === "" && mode === "grid"
     background: Rectangle { color: Theme.window }
 
     function showForm(index) {
@@ -25,6 +28,7 @@ Page {
     FormDesignDialog { id: formDesignDialog }
     MatchingRows { id: matchingRows }
     AddFieldDialog { id: addFieldDialog }
+    NewTableDialog { id: newTableDialog }
     MakeLookupDialog { id: makeLookupDialog }
     RenameFieldDialog { id: renameFieldDialog }
 
@@ -360,6 +364,12 @@ Page {
                     color: Theme.lightForeground
                     wrapMode: Text.WordWrap
                 }
+                ActionButton {
+                    text: "New table…"
+                    objectName: "newTableButton"
+                    Layout.fillWidth: true
+                    onClicked: newTableDialog.openFor()
+                }
             }
         }
 
@@ -372,9 +382,11 @@ Page {
                 anchors.fill: parent
                 visible: Bridge.tables.length === 0
                 title: "No tables yet"
-                text: "Drop a spreadsheet on this window, or press the button, and it becomes a table."
-                buttonText: "Import spreadsheet"
-                onClicked: win.startImport()
+                text: "Make a table and list its fields, or bring in a spreadsheet: drop it on this window and it becomes a table."
+                buttonText: "New table…"
+                onClicked: newTableDialog.openFor()
+                secondButtonText: "Import spreadsheet"
+                onSecondClicked: win.startImport()
             }
             ActionButton {
                 anchors.right: parent.right
@@ -385,18 +397,11 @@ Page {
                 onClicked: confirmDeleteDatabase.open()
             }
 
-            EmptyState {
-                anchors.fill: parent
-                visible: Bridge.tables.length > 0 && Bridge.totalRows === 0 && Bridge.filterWords === "" && page.mode !== "form"
-                title: "No rows yet"
-                text: "This table is empty. Press Add row, or import a spreadsheet."
-            }
-
             ColumnLayout {
                 anchors.fill: parent
                 anchors.margins: 12
                 spacing: 0
-                visible: Bridge.tables.length > 0 && (Bridge.totalRows > 0 || page.mode === "form" || Bridge.filterWords !== "")
+                visible: Bridge.tables.length > 0
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -553,7 +558,9 @@ Page {
                     id: grid
                     objectName: "rowsGrid"
                     Layout.fillWidth: true
-                    Layout.fillHeight: true
+                    // No rows: the headings stay, and the message below takes the space.
+                    Layout.fillHeight: !page.noRows
+                    Layout.preferredHeight: page.noRows ? 0 : -1
                     visible: page.mode === "grid"
                     clip: true
                     model: Bridge.rows
@@ -614,6 +621,17 @@ Page {
                             grid.forceLayout()
                         }
                     }
+                }
+
+                EmptyState {
+                    objectName: "noRowsState"
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    visible: page.noRows
+                    title: "No rows yet"
+                    text: "This table is empty. Press Add row, or import a spreadsheet."
+                    buttonText: "Add row"
+                    onClicked: page.addRow()
                 }
 
                 Label {

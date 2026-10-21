@@ -23,6 +23,8 @@ for exactly what works today.
   Or start from a template (Contacts, Inventory, Projects and tasks,
   Customer service, Home collection) that comes with its tables, saved views
   and reports, and a few example rows if you want them.
+- **Make a table.** Name it and list its fields: what each is called, and
+  whether it holds words, numbers, dates or yes/no. Then type in your rows.
 - **Import a spreadsheet.** Drop a CSV or Excel file on the window. Jubako
   works out each column (words, whole numbers, numbers with decimals, dates,
   or yes/no), shows you its guesses, and lets you change them before anything
@@ -220,7 +222,8 @@ The home screen has three big buttons: **New database**, **Open a database**,
 Excel file anywhere on the window and it becomes a database (or a table, if
 one is already open). Nothing is replaced without asking first.
 
-Inside a database: **Grid** and **Form** show the same table two ways.
+Inside a database: **New table…** (under the list of tables) makes an empty
+table: give it a name and a line per field. **Grid** and **Form** show the same table two ways.
 **Add row** and **Delete row** do what they say. **Show rows where…** hides
 rows that do not match; **Clear** brings them back; **Views…** keeps a rule
 under a name and applies it again later. **More…** holds the rest:
@@ -237,6 +240,7 @@ shows the version, license, Nine Point Labs and the support address,
 ```sh
 jubako backends                                   # what kinds of database you can make
 jubako new "My Pets" ~/Documents/pets.jubadb       # make one
+jubako new-table ~/Documents/pets.jubadb Vets Name Phone "Last visit:date"   # an empty table
 jubako import ~/Documents/pets.jubadb pets.csv     # put a spreadsheet in it
 jubako import ~/Documents/pets.jubadb book.xlsx --all-sheets   # one table per sheet
 jubako tables ~/Documents/pets.jubadb              # what's in there
@@ -274,7 +278,7 @@ Then ask it to do the work:
 
 The tools are `list_backends`, `create_database`, `list_databases`,
 `open_database`, `plan_import`, `import_spreadsheet`, `list_tables`,
-`describe_table`, `list_rows`, `add_row`, `update_row`, `delete_row`,
+`create_table`, `describe_table`, `list_rows`, `add_row`, `update_row`, `delete_row`,
 `add_field`, `rename_field`, `delete_field`, `delete_table`, `delete_database`,
 `list_views`, `get_view`, `save_view`, `delete_view`,
 `create_form`, `get_form`, `create_report`, `list_reports`, `delete_report`,

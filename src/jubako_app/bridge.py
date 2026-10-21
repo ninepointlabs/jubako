@@ -824,7 +824,7 @@ class Bridge(QObject):
         except JubakoError as error:
             return {"ok": False, "error": str(error)}
         self._adopt(storage)
-        self.message.emit("New database made. Now import a spreadsheet.")
+        self.message.emit("New database made. Now make a table, or import a spreadsheet.")
         return {"ok": True}
 
     @Slot(result="QVariantList")
@@ -1113,6 +1113,25 @@ class Bridge(QObject):
                 "error": "" if tables else ("Nothing was imported. " + " ".join(errors))}
 
     # -- fields and tables ------------------------------------------------------
+    @Slot(str, "QVariantList", result="QVariantMap")
+    def newTable(self, table: str, fields: list) -> dict:  # noqa: N802
+        """Make an empty table with these fields ({label, type, unique}) and show it."""
+        if self._storage is None:
+            return {"ok": False, "error": "Open a database first."}
+        try:
+            result = schema.create_table(self._storage, table, [dict(f) for f in fields])
+        except JubakoError as error:
+            return {"ok": False, "error": str(error)}
+        self._refresh_tables(select=result["table"])
+        count = len(result["fields"])
+        self.message.emit(f"Made the table {result['table']} with {count} field{'s' if count != 1 else ''}.")
+        return {"ok": True, "table": result["table"], "fields": result["fields"]}
+
+    @Slot(str, result=str)
+    def tableName(self, label: str) -> str:  # noqa: N802
+        """"Vet visits" -> "vet_visits": a new table's name inside, made from what was typed."""
+        return slugify_name(label, fallback="table") if (label or "").strip() else ""
+
     @Slot(str, str, str, result="QVariantMap")
     @Slot(str, str, str, bool, result="QVariantMap")
     def addField(self, label: str, name: str, field_type: str, unique: bool = False) -> dict:  # noqa: N802

@@ -350,6 +350,14 @@ def tool_list_rows(arguments: dict[str, Any]) -> dict[str, Any]:
         )
 
 
+def tool_create_table(arguments: dict[str, Any]) -> dict[str, Any]:
+    with _open(arguments) as storage:
+        result = schema.create_table(storage, arguments["table"], arguments["fields"])
+    result["rows"] = 0
+    result["note"] = "The table is empty; add rows with add_row, or fields with add_field."
+    return result
+
+
 def tool_add_field(arguments: dict[str, Any]) -> dict[str, Any]:
     with _open(arguments) as storage:
         result = schema.add_field(
@@ -922,6 +930,40 @@ TOOLS: list[dict[str, Any]] = [
         "handler": tool_delete_view,
     },
     {
+        "name": "create_table",
+        "description": (
+            "Make a new, empty table with the fields listed, like a Pets table with Name, Born (date) and "
+            "Chipped (boolean). The table's name inside is made from `table` ('Vet visits' -> vet_visits), "
+            "and each field's from its label. A row number (id) is added for you."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                **_TARGET_PROPERTIES,
+                "table": {"type": "string", "description": "What the table holds, like 'Pets'."},
+                "fields": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "label": {"type": "string", "description": "What people see, like 'Born'."},
+                            "name": {"type": "string", "description": "Name inside. Made from the label if left out."},
+                            "type": {"type": "string", "enum": list(ALL_FIELD_TYPES), "default": "text"},
+                            "unique": {"type": "boolean", "default": False},
+                            "target": {"type": "string", "description": "For a lookup: the table it points at."},
+                            "show": {"type": "string", "description": "For a lookup: the words field of target it shows."},
+                        },
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            "required": ["table", "fields"],
+            "additionalProperties": False,
+        },
+        "handler": tool_create_table,
+    },
+    {
         "name": "add_field",
         "description": "Add a field (column) to a table. Rows already there get nothing in it.",
         "inputSchema": {
@@ -1187,7 +1229,7 @@ def handle(message: dict[str, Any]) -> dict[str, Any] | None:
             "instructions": (
                 "Jubako makes simple desktop databases. Start with create_database "
                 "(backend 'sqlite' is one file and needs nothing installed), then "
-                "import_spreadsheet, then list_tables and list_rows. File paths must be "
+                "import_spreadsheet (or create_table for an empty one), then list_tables and list_rows. File paths must be "
                 "inside the user's approved folders."
             ),
         }

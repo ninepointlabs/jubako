@@ -407,3 +407,22 @@ def test_bulk_row_tools(sandbox, pets_csv):
         HANDLERS["delete_rows"]({"path": db, "table": "pets"})
     assert HANDLERS["delete_rows"]({"path": db, "table": "pets", "filter": young})["deleted"] == 2
     assert HANDLERS["list_rows"]({"path": db, "table": "pets"})["total"] == 2
+
+
+def test_create_table_makes_an_empty_table(sandbox: Path):
+    path = str(sandbox / "vets.jubadb")
+    call("create_database", title="Vets", path=path)
+    payload, failed = call("create_table", path=path, table="Vet visits", fields=[
+        {"label": "Pet"}, {"label": "Visited on", "type": "date"}, {"label": "Invoice", "unique": True},
+    ])
+    assert failed is False
+    assert payload["table"] == "vet_visits" and payload["rows"] == 0
+    assert [f["name"] for f in payload["fields"]] == ["pet", "visited_on", "invoice"]
+    assert call("list_tables", path=path)[0]["tables"] == [{"name": "vet_visits", "fields": 3, "rows": 0}]
+    payload, failed = call("add_row", path=path, table="vet_visits", values={"pet": "Rex", "visited_on": "2026-10-01"})
+    assert failed is False
+
+    payload, failed = call("create_table", path=path, table="Vet visits", fields=[{"label": "Pet"}])
+    assert failed is True and "already a table" in payload["error"]
+    payload, failed = call("create_table", path=path, table="Empty", fields=[])
+    assert failed is True and "at least one field" in payload["error"]
