@@ -71,6 +71,10 @@ def cmd_new_table(args: argparse.Namespace) -> int:
         if not colon:
             label, field_type = spec, "text"
         fields.append({"label": label, "type": field_type.strip().lower() or "text"})
+    names = {slugify_name(field["label"]) for field in fields}
+    for label in args.unique or []:
+        if slugify_name(label) not in names:
+            raise JubakoError(f"--unique {label!r} matches none of the fields.")
     unique = {slugify_name(u) for u in args.unique or []}
     for field in fields:
         field["unique"] = slugify_name(field["label"]) in unique

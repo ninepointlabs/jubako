@@ -247,3 +247,17 @@ def test_new_table_on_the_command_line(sandbox, capsys):
     ]
     assert cli(["new-table", db, "Other", "Born:birthday"]) == 2
     assert "Unknown field type 'birthday'" in capsys.readouterr().err
+    assert cli(["new-table", db, "Other", "Name", "--unique", "Nmae"]) == 2
+    assert "--unique 'Nmae' matches none of the fields" in capsys.readouterr().err
+
+
+def test_a_refused_table_is_not_made(sandbox, capsys):
+    from jubako.cli import main as cli
+
+    db = str(sandbox / "cli.jubadb")
+    assert cli(["new", "Tasks", db]) == 0
+    assert cli(["new-table", db, "Tasks", "Name", "Done:boolean", "--unique", "Done"]) == 2
+    assert "cannot be no-repeats" in capsys.readouterr().err
+    with open_database(backend="sqlite", path=db) as storage:
+        assert storage.list_tables() == []
+    assert cli(["new-table", db, "Tasks", "Name", "Done:boolean"]) == 0
