@@ -2,6 +2,20 @@
 
 **Phase B (forms, Excel, reports, printing), then the Access features in `TODO.md`. Last updated 2026-10-19.**
 
+## 2026-10-21 — Make a table from scratch
+
+A table could only come from a spreadsheet or a template. Now **New table…**,
+under the list of tables (and on the screen of a database with none), asks
+for a name and a line per field: its label, its type, and no repeats. The name
+inside is made from the name typed ("Vet visits" becomes `vet_visits`), as a
+field's is from its label. A lookup, or more fields, can be added afterwards.
+The same job is `jubako new-table` on the command line (`Name "Born:date"`)
+and `create_table` for agents, both over the new `schema.create_table`.
+
+An empty table showed "Press Add row" with the toolbar, Add row included,
+hidden until the table had a row. The toolbar now stays, the headings show
+the fields, and the empty space has its own Add row button.
+
 ## 2026-10-20 — The .rpm installs on openSUSE Tumbleweed
 
 The .rpm asked for `qt6-qtdeclarative`, Fedora's name for the Qt Quick

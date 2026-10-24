@@ -261,13 +261,14 @@ class Storage(ABC):
                 raise BadName(f"There is already a table called {table!r}.")
 
         for field in fields:
+            if field.unique:
+                self._check_unique_type(field)
             if field.type == LOOKUP:
                 self._check_lookup(table, field, fields)
         columns = [self.primary_key_sql()] + [self.column_sql(f) for f in fields]
         self.execute(f"CREATE TABLE {self.quote(table)} ({', '.join(columns)})")
         for field in fields:
             if field.unique:
-                self._check_unique_type(field)
                 self._create_unique_index(table, field)
         self.remember_fields(table, fields)
         self.commit()
