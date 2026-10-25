@@ -274,3 +274,18 @@ def test_xlsx_columns_with_data_but_no_heading_are_kept(database, sandbox: Path)
     rows = database.list_rows("gaps")["rows"]
     assert rows[0][1:] == ["Ann", "left-handed", 31, None]
     assert rows[1][4] == "spills into a fourth column"
+
+
+def test_a_ragged_csv_warns_with_line_numbers(database, sandbox):
+    target = sandbox / "ragged.csv"
+    target.write_text('a,b\n1,1,2\n2,"unclosed,4\n3,x\n', encoding="utf-8")
+    result = import_spreadsheet(database, str(target))
+    assert result["warning_count"] == 2
+    assert result["warnings"][0].startswith("Line 2: 3 values but 2 columns")
+    assert result["warnings"][1].startswith("Line 3: a quote is never closed")
+
+
+def test_a_tidy_csv_has_no_warnings(database, sandbox):
+    target = sandbox / "tidy.csv"
+    target.write_text('a,b\n1,"two, quoted"\n2,"multi\nline"\n', encoding="utf-8")
+    assert import_spreadsheet(database, str(target))["warnings"] == []
