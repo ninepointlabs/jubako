@@ -240,7 +240,7 @@ shows the version, license, Nine Point Labs and the support address,
 ```sh
 jubako backends                                   # what kinds of database you can make
 jubako new "My Pets" ~/Documents/pets.jubadb       # make one
-jubako new-table ~/Documents/pets.jubadb Vets Name Phone "Last visit:date"   # an empty table
+jubako new-table ~/Documents/pets.jubadb Vets Name Phone "Last visit:date"   # an empty table (unreleased: coming in the next release, not in 0.4.7)
 jubako import ~/Documents/pets.jubadb pets.csv     # put a spreadsheet in it
 jubako import ~/Documents/pets.jubadb book.xlsx --all-sheets   # one table per sheet
 jubako tables ~/Documents/pets.jubadb              # what's in there
@@ -251,7 +251,8 @@ jubako export ~/Documents/pets.jubadb pets out.csv # send it back out (--format 
 jubako report ~/Documents/pets.jubadb pets pets.pdf --landscape --title "All the pets"
 ```
 
-There is a tiny example to try: `data/examples/pets.csv`.
+There is a tiny example to try in the source repository (it is not installed with the
+package): [`data/examples/pets.csv`](https://github.com/ninepointlabs/jubako/blob/main/data/examples/pets.csv).
 
 ### From an agent (MCP)
 

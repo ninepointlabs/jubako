@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import csv
 import datetime as _dt
+import sys
+import sysconfig
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -26,8 +28,15 @@ EXCEL_SUFFIXES = {".xlsx", ".xlsm"}
 OLD_EXCEL_SUFFIXES = {".xls"}
 
 
-def read_csv(path: Path, *, max_rows: int | None = None) -> tuple[list[str], list[list[str]]]:
-    """Read a CSV file into headings plus rows of plain text."""
+def read_csv(
+    path: Path, *, max_rows: int | None = None, warnings: list[str] | None = None
+) -> tuple[list[str], list[list[str]]]:
+    """Read a CSV file into headings plus rows of plain text.
+
+    A ragged file still reads, but each line that went wrong is told in
+    `warnings` (when given): a line with more values than there are columns,
+    and a quote that is never closed.
+    """
     with path.open("r", newline="", encoding="utf-8-sig", errors="replace") as handle:
         sample = handle.read(64 * 1024)
         handle.seek(0)
@@ -41,16 +50,55 @@ def read_csv(path: Path, *, max_rows: int | None = None) -> tuple[list[str], lis
         except StopIteration:
             raise ImportProblem("That file is empty.") from None
         rows: list[list[str]] = []
+        line_number = reader.line_num + 1
         for row in reader:
+            if len(row) > len(headers) and any(str(cell).strip() for cell in row[len(headers):]):
+                if warnings is not None:
+                    warnings.append(
+                        f"Line {line_number}: {len(row)} values but {len(headers)} columns; "
+                        "the extra values were left out."
+                    )
+            start, line_number = line_number, reader.line_num + 1
             if not any(str(cell).strip() for cell in row):
                 continue
             rows.append([str(cell) for cell in row])
             if max_rows is not None and len(rows) >= max_rows:
                 break
+        else:
+            if warnings is not None and rows and _quote_left_open(path, dialect):
+                warnings.append(
+                    f"Line {start}: a quote is never closed, so the rest of the file "
+                    "went into one value."
+                )
     headers = [str(header) for header in headers]
     if not any(header.strip() for header in headers):
         raise ImportProblem("The first line of that file has no column names.")
     return headers, rows
+
+
+def _quote_left_open(path: Path, dialect: Any) -> bool:
+    """Whether the file ends inside a quoted value (the lenient reader just keeps going)."""
+    with path.open("r", newline="", encoding="utf-8-sig", errors="replace") as handle:
+        try:
+            for _row in csv.reader(handle, dialect, strict=True):
+                pass
+        except csv.Error as error:
+            return "unexpected end of data" in str(error)
+    return False
+
+
+def xlsx_install_hint() -> str:
+    """How to get openpyxl, the way this copy of Jubako was installed.
+
+    In a virtual environment pip works. A system Python that is externally
+    managed (Arch, Debian, Fedora) refuses pip, so name the system package.
+    """
+    in_venv = sys.prefix != sys.base_prefix
+    managed = Path(sysconfig.get_path("stdlib"), "EXTERNALLY-MANAGED").exists()
+    if managed and not in_venv:
+        return ("Install your system's openpyxl package: python-openpyxl on Arch, "
+                "python3-openpyxl on Debian, Ubuntu and Fedora.")
+    return "Install it with: pip install 'jubako[xlsx]'"
 
 
 def _openpyxl():
@@ -58,8 +106,7 @@ def _openpyxl():
         import openpyxl  # noqa: PLC0415
     except ImportError as exc:  # pragma: no cover - depends on the machine
         raise ImportProblem(
-            "Reading Excel files needs the 'openpyxl' package. "
-            "Install it with: pip install 'jubako[xlsx]'"
+            "Reading Excel files needs the 'openpyxl' package. " + xlsx_install_hint()
         ) from exc
     return openpyxl
 
@@ -273,13 +320,17 @@ def read_xlsx(
 
 
 def read_sheet(
-    path: Path, *, sheet: str | None = None, max_rows: int | None = None
+    path: Path,
+    *,
+    sheet: str | None = None,
+    max_rows: int | None = None,
+    warnings: list[str] | None = None,
 ) -> tuple[list[str], list[list[str]]]:
     """Read whichever kind of spreadsheet this is."""
     suffix = path.suffix.lower()
     if suffix in EXCEL_SUFFIXES:
         return read_xlsx(path, sheet=sheet, max_rows=max_rows)
-    return read_csv(path, max_rows=max_rows)
+    return read_csv(path, max_rows=max_rows, warnings=warnings)
 
 
 def table_name_for(path: Path, sheet: str | None = None) -> str:
@@ -338,7 +389,8 @@ def import_spreadsheet(
         fields = [Field(name=f["name"], type=f["type"], label=f["label"]) for f in plan["fields"]]
     fields = list(fields)
 
-    headers, rows = read_sheet(path, sheet=plan["sheet"] or None)
+    warnings: list[str] = []
+    headers, rows = read_sheet(path, sheet=plan["sheet"] or None, warnings=warnings)
     existed = storage.has_table(table_name)
     storage.create_table(table_name, fields, if_exists=if_exists)
 
@@ -365,6 +417,8 @@ def import_spreadsheet(
         "rows_added": added,
         "notes": problems[:20],
         "note_count": len(problems),
+        "warnings": warnings[:20],
+        "warning_count": len(warnings),
         "replaced_existing": existed and if_exists == "replace",
     }
 

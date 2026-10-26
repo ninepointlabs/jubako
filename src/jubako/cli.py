@@ -16,7 +16,7 @@ import json
 import sys
 from typing import Any
 
-from . import catalog
+from . import __version__, catalog
 from .errors import JubakoError
 from .exporter import export_table
 from .fields import slugify_name
@@ -194,6 +194,8 @@ def cmd_import(args: argparse.Namespace) -> int:
         )
         _remember(storage)
     print(f"Added {result['rows_added']} rows to the table {result['table']!r}.")
+    for warning in result["warnings"]:
+        print(f"Warning: {warning}", file=sys.stderr)
     for field in result["created_fields"]:
         print(f"  {field['label']}  ->  {field['name']} ({field['type']})")
     if result["note_count"]:
@@ -339,6 +341,7 @@ def _filter_arguments(sub: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="jubako", description="A simple desktop database.")
+    parser.add_argument("-V", "--version", action="version", version=f"jubako {__version__}")
     subs = parser.add_subparsers(dest="command", required=True)
 
     sub = subs.add_parser("backends", help="Show the kinds of database you can make")

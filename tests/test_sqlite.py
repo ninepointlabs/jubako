@@ -125,3 +125,22 @@ def test_replace_drops_the_old_table(database):
     database.create_table("pets", [Field("name", TEXT)], if_exists="replace")
     assert database.count_rows("pets") == 0
     assert len(database.describe_table("pets").fields) == 1
+
+
+def test_a_file_that_is_not_a_database_is_a_plain_error(sandbox, capsys):
+    from jubako.cli import main as cli
+
+    junk = sandbox / "junk.jubadb"
+    junk.write_text("not a database at all\n" * 50, encoding="utf-8")
+    assert cli(["tables", str(junk)]) == 2
+    assert "is not a database Jubako can open" in capsys.readouterr().err
+
+
+def test_version_flag(capsys):
+    import jubako
+    from jubako.cli import main as cli
+
+    with pytest.raises(SystemExit) as stop:
+        cli(["--version"])
+    assert stop.value.code == 0
+    assert capsys.readouterr().out.strip() == f"jubako {jubako.__version__}"

@@ -13,6 +13,7 @@ from typing import Any
 
 from .errors import JubakoError
 from .fields import BOOLEAN, DATE
+from .importer import xlsx_install_hint
 from .paths import resolve_under_roots
 from .storage.base import Storage, to_jsonable
 
@@ -100,8 +101,7 @@ def _write_xlsx(
         from openpyxl.styles import Font  # noqa: PLC0415
     except ImportError as exc:  # pragma: no cover - depends on the machine
         raise JubakoError(
-            "Writing Excel files needs the 'openpyxl' package. "
-            "Install it with: pip install 'jubako[xlsx]'"
+            "Writing Excel files needs the 'openpyxl' package. " + xlsx_install_hint()
         ) from exc
 
     book = Workbook()

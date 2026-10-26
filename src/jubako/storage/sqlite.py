@@ -73,6 +73,13 @@ class SQLiteStorage(Storage):
         target = database_path(path)
         if not target.exists():
             raise DatabaseMissing(f"There is no database at {target}.")
+        connection = sqlite3.connect(str(target))
+        try:
+            connection.execute("SELECT count(*) FROM sqlite_master").fetchone()
+        except sqlite3.DatabaseError:
+            raise JubakoError(f"{target} is not a database Jubako can open.") from None
+        finally:
+            connection.close()
         storage = cls(target)
         storage.ensure_meta()
         return storage
